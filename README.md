@@ -36,5 +36,5 @@ project notes for the exact DNS setup on the kn0ble.com domain (GoDaddy).
 
 ## Related
 
-- [QSL Tracker](https://qsl-tracker.onrender.com) -- separate app/repo,
+- [QSL Tracker](https://qsl.kn0ble.com) -- separate app/repo,
   linked from the nav on every page here.

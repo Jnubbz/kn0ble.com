@@ -197,6 +197,23 @@ footer.site-footer a { color: var(--muted); }
 
 .request-form button:hover { background: var(--amber-dark); }
 
+.card-cta p { margin-bottom: 1rem; }
+
+.btn {
+  display: inline-block;
+  background: var(--amber);
+  color: var(--bg) !important;
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none !important;
+  border-bottom: none !important;
+}
+
+.btn:hover { background: var(--amber-dark); }
+
 /* Honeypot field -- hidden from real visitors and screen readers,
    left for bots that fill in every field to trip. */
 .hp-field {

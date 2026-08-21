@@ -194,17 +194,6 @@ table.equipment th {
   letter-spacing: 0.03em;
 }
 
-.embed-wrap {
-  width: 100%;
-  overflow-x: auto;
-  margin-top: 1rem;
-}
-
-.embed-wrap iframe {
-  display: block;
-  border: 0;
-}
-
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

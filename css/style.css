@@ -1,13 +1,12 @@
 :root {
-  --navy: #0b1f33;
-  --navy-light: #14304f;
+  --bg: #0a1420;
+  --bg-elevated: #101d2e;
   --amber: #e8a33d;
   --amber-dark: #c9822a;
-  --paper: #f7f5f0;
-  --ink: #1c1c1c;
-  --muted: #5a6472;
-  --border: #dfdad0;
-  --card: #ffffff;
+  --ink: #e7ebf0;
+  --muted: #93a1b0;
+  --border: #223247;
+  --card: #101d2e;
   --max-width: 960px;
 }
 
@@ -17,19 +16,20 @@ body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: var(--ink);
-  background: var(--paper);
+  background: var(--bg);
   line-height: 1.6;
 }
 
-a { color: var(--amber-dark); }
-a:hover { color: var(--navy); }
+a { color: var(--amber); }
+a:hover { color: #fff; }
 
 img { max-width: 100%; display: block; }
 
 /* ---- Header / nav ---- */
 
 header.site-header {
-  background: var(--navy);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
   color: #fff;
   padding: 1.25rem 1.5rem;
 }
@@ -54,7 +54,7 @@ header.site-header {
 }
 
 .callsign-mark span {
-  color: #fff;
+  color: var(--muted);
   font-weight: 400;
   font-size: 0.95rem;
   letter-spacing: normal;
@@ -73,7 +73,7 @@ nav.site-nav ul {
 }
 
 nav.site-nav a {
-  color: #e7e9ec;
+  color: #c3ccd6;
   text-decoration: none;
   font-size: 0.95rem;
   padding-bottom: 2px;
@@ -88,14 +88,14 @@ nav.site-nav a[aria-current="page"] {
 
 .tracker-link {
   background: var(--amber);
-  color: var(--navy) !important;
+  color: var(--bg) !important;
   padding: 0.4rem 0.9rem;
   border-radius: 4px;
   font-weight: 600;
   border-bottom: none !important;
 }
 
-.tracker-link:hover { background: var(--amber-dark); }
+.tracker-link:hover { background: var(--amber-dark); color: var(--bg) !important; }
 
 /* ---- Layout ---- */
 
@@ -114,6 +114,7 @@ main {
 .hero h1 {
   font-size: 2.25rem;
   margin: 0 0 0.5rem;
+  color: var(--ink);
 }
 
 .hero .tagline {
@@ -121,17 +122,6 @@ main {
   font-size: 1.15rem;
   margin: 0;
 }
-
-.placeholder {
-  background: #fdf6e8;
-  border: 1px dashed var(--amber-dark);
-  border-radius: 6px;
-  padding: 1rem 1.25rem;
-  color: #7a5c22;
-  font-size: 0.92rem;
-}
-
-.placeholder strong { color: var(--amber-dark); }
 
 .card {
   background: var(--card);
@@ -144,117 +134,7 @@ main {
 .card h2 {
   margin-top: 0;
   font-size: 1.3rem;
-}
-
-.two-col {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1.5rem;
-}
-
-@media (max-width: 640px) {
-  .two-col { grid-template-columns: 1fr; }
-}
-
-.fact-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.fact-list li {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.95rem;
-}
-
-.fact-list li:last-child { border-bottom: none; }
-.fact-list .label { color: var(--muted); }
-
-table.equipment {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.95rem;
-}
-
-table.equipment th,
-table.equipment td {
-  text-align: left;
-  padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-
-table.equipment th {
-  color: var(--muted);
-  font-weight: 600;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1rem;
-  margin: 1.5rem 0;
-}
-
-.stat-tile {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1.1rem;
-  text-align: center;
-}
-
-.stat-tile .num {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: var(--navy);
-  display: block;
-}
-
-.stat-tile .label {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.log-entry {
-  border-bottom: 1px solid var(--border);
-  padding: 1.25rem 0;
-}
-
-.log-entry:first-of-type { padding-top: 0; }
-.log-entry:last-of-type { border-bottom: none; }
-
-.log-entry .date {
-  color: var(--muted);
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.log-entry h3 { margin: 0.25rem 0 0.4rem; }
-
-.gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.gallery-tile {
-  aspect-ratio: 4 / 3;
-  background: var(--navy-light);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #b9c2cc;
-  font-size: 0.85rem;
-  text-align: center;
-  padding: 1rem;
+  color: var(--ink);
 }
 
 footer.site-footer {
@@ -267,7 +147,7 @@ footer.site-footer {
 
 footer.site-footer a { color: var(--muted); }
 
-/* ---- Request forms (POTA/QSL card request) ---- */
+/* ---- Request forms (QSL card request) ---- */
 
 .request-form {
   display: flex;
@@ -292,13 +172,21 @@ footer.site-footer a { color: var(--muted); }
   border-radius: 6px;
   font-size: 1rem;
   font-family: inherit;
+  background: var(--bg);
   color: var(--ink);
+}
+
+.request-form input::placeholder { color: #5c6b7c; }
+
+.request-form input:focus {
+  outline: none;
+  border-color: var(--amber);
 }
 
 .request-form button {
   align-self: flex-start;
   background: var(--amber);
-  color: var(--navy);
+  color: var(--bg);
   border: none;
   border-radius: 6px;
   padding: 0.6rem 1.2rem;

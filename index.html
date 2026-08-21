@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KN0BLE -- Amateur Radio</title>
-  <meta name="description" content="Amateur radio callsign KN0BLE -- station info, QSL policy, and log.">
+  <title>KN0BLE -- Amateur Radio QSL Tools</title>
+  <meta name="description" content="Amateur radio callsign KN0BLE -- QSL card requests, address lookups, and the QSL photo map.">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -13,11 +13,7 @@
       <a href="index.html" class="callsign-mark">KN0BLE<span>Amateur Radio</span></a>
       <nav class="site-nav">
         <ul>
-          <li><a href="index.html" aria-current="page">About</a></li>
-          <li><a href="station.html">Station</a></li>
-          <li><a href="awards.html">Awards</a></li>
-          <li><a href="log.html">Log</a></li>
-          <li><a href="gallery.html">Gallery</a></li>
+          <li><a href="index.html" aria-current="page">Home</a></li>
           <li><a href="https://qsl.kn0ble.com/photomap" target="_blank" rel="noopener">QSL Photo Map</a></li>
           <li><a class="tracker-link" href="https://qsl.kn0ble.com" target="_blank" rel="noopener">QSL Tracker</a></li>
         </ul>
@@ -28,63 +24,32 @@
   <main>
     <section class="hero">
       <h1>KN0BLE</h1>
-      <p class="tagline">Florida Man Meets Amateur Radio</p>
+      <p class="tagline">QSL card requests, address lookups, and the photo map.</p>
     </section>
 
-    <div class="placeholder">
-      <strong>Placeholder content:</strong> the bio below is still a starting layout. Swap in your real
-      story -- search for <code>[...]</code> to find the spot that still needs your info.
-    </div>
-
-    <div class="two-col" style="margin-top: 1.5rem;">
-      <div class="card">
-        <h2>About</h2>
-        <p>
-          [Write a short bio here: when you got licensed, what got you into amateur radio, what you
-          like operating (HF, digital modes, satellites, contesting, etc.), and anything else visitors
-          should know before they look you up.]
-        </p>
-        <p>
-          [A second paragraph if you want one -- maybe about your QSL policy at a glance, or what
-          you're currently working on.]
-        </p>
-      </div>
-
-      <div class="card">
-        <h2>Quick facts</h2>
-        <ul class="fact-list">
-          <li><span class="label">Callsign</span> <span>KN0BLE</span></li>
-          <li><span class="label">License class</span> <span>General</span></li>
-          <li><span class="label">Grid square</span> <span>EL98gp</span></li>
-          <li><span class="label">QTH</span> <span>Forest City, FL</span></li>
-          <li><span class="label">First licensed</span> <span>2026</span></li>
-        </ul>
-      </div>
-    </div>
-
     <div class="card">
-      <h2>Want to send a QSL card?</h2>
+      <h2>Look up a QSL address</h2>
       <p>
         Use the <a href="https://qsl.kn0ble.com" target="_blank" rel="noopener">QSL Tracker</a>
-        to look up a callsign (including mine) against QRZ and see whether a direct paper card is
+        to look up a callsign against QRZ and see whether a direct paper card is
         wanted, and where to send it.
       </p>
     </div>
 
     <div class="card">
-      <h2>Want a QSL card from me?</h2>
+      <h2>Request a card from KN0BLE</h2>
       <p>
-        Worked KN0BLE and want a card back? Send your callsign below and I'll look up your
-        address and get one in the mail.
+        Worked KN0BLE and want a card back? Send a callsign below and one will
+        get mailed out.
       </p>
       <form class="request-form" method="POST" action="https://qsl.kn0ble.com/request-qsl">
-        <label for="callsign-index">Your callsign
+        <label for="callsign-index">Callsign
           <input type="text" id="callsign-index" name="callsign" maxlength="20" required autocomplete="off">
         </label>
         <label for="note-index">Note (optional)
           <input type="text" id="note-index" name="note" maxlength="200" placeholder="e.g. worked you on 20m CW, Aug 2026">
         </label>
-        <label for="email-index">Your email (optional)
+        <label for="email-index">Email (optional)
           <input type="email" id="email-index" name="email" maxlength="200" autocomplete="email">
         </label>
         <div class="hp-field" aria-hidden="true">
@@ -93,6 +58,14 @@
         </div>
         <button type="submit">Request a QSL Card</button>
       </form>
+    </div>
+
+    <div class="card">
+      <h2>QSL Photo Map</h2>
+      <p>
+        Scanned QSL cards plotted by station, worldwide. Check out the
+        <a href="https://qsl.kn0ble.com/photomap" target="_blank" rel="noopener">QSL Photo Map</a>.
+      </p>
     </div>
   </main>
 

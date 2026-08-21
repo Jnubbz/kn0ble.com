@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Awards -- KN0BLE</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="callsign-mark">KN0BLE<span>Amateur Radio</span></a>
+      <nav class="site-nav">
+        <ul>
+          <li><a href="index.html">About</a></li>
+          <li><a href="station.html">Station</a></li>
+          <li><a href="awards.html" aria-current="page">Awards</a></li>
+          <li><a href="log.html">Log</a></li>
+          <li><a href="gallery.html">Gallery</a></li>
+          <li><a href="https://qsl.kn0ble.com/photomap" target="_blank" rel="noopener">QSL Photo Map</a></li>
+          <li><a class="tracker-link" href="https://qsl.kn0ble.com" target="_blank" rel="noopener">QSL Tracker</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Awards &amp; DXCC</h1>
+      <p class="tagline">Progress toward the usual suspects.</p>
+    </section>
+
+    <div class="placeholder">
+      <strong>Placeholder content:</strong> DXCC counts aren't posted yet -- more stats and awards here
+      as they're ready.
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-tile"><span class="num">50</span><span class="label">US states worked</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Awards earned</h2>
+      <ul class="fact-list">
+        <li><span class="label">Worked All States</span> <span>Earned</span></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>QSL card map</h2>
+      <p>
+        Check out the <a href="https://qsl.kn0ble.com/photomap" target="_blank" rel="noopener">QSL Photo Map</a> --
+        scanned QSL cards plotted by station, worldwide. New cards get added as they come in.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Want a QSL card from me?</h2>
+      <p>
+        Worked KN0BLE and want a card back? Send your callsign below and I'll look up your
+        address and get one in the mail.
+      </p>
+      <form class="request-form" method="POST" action="https://qsl.kn0ble.com/request-qsl">
+        <label for="callsign-awards">Your callsign
+          <input type="text" id="callsign-awards" name="callsign" maxlength="20" required autocomplete="off">
+        </label>
+        <label for="note-awards">Note (optional)
+          <input type="text" id="note-awards" name="note" maxlength="200" placeholder="e.g. worked you on 20m CW, Aug 2026">
+        </label>
+        <label for="email-awards">Your email (optional)
+          <input type="email" id="email-awards" name="email" maxlength="200" autocomplete="email">
+        </label>
+        <div class="hp-field" aria-hidden="true">
+          <label for="website-awards">Leave this field empty</label>
+          <input type="text" id="website-awards" name="website" tabindex="-1" autocomplete="off">
+        </div>
+        <button type="submit">Request a QSL Card</button>
+      </form>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <p>KN0BLE &middot; Amateur Radio &middot; <a href="https://qsl.kn0ble.com" target="_blank" rel="noopener">QSL Tracker</a></p>
+  </footer>
+</body>
+</html>

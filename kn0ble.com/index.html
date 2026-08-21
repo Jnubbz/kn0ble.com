@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KN0BLE -- Amateur Radio QSL Tools</title>
+  <meta name="description" content="Amateur radio callsign KN0BLE -- QSL card requests, address lookups, and the QSL photo map.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="callsign-mark">KN0BLE<span>Amateur Radio</span></a>
+      <nav class="site-nav">
+        <ul>
+          <li><a href="index.html" aria-current="page">Home</a></li>
+          <li><a href="https://qsl.kn0ble.com/photomap" target="_blank" rel="noopener">QSL Photo Map</a></li>
+          <li><a class="tracker-link" href="https://qsl.kn0ble.com" target="_blank" rel="noopener">QSL Tracker</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>KN0BLE</h1>
+      <p class="tagline">QSL card requests, address lookups, and the photo map.</p>
+    </section>
+
+    <div class="card card-cta">
+      <h2>Look up a QSL address</h2>
+      <p>
+        Look up a callsign against QRZ and see whether a direct paper card is
+        wanted, and where to send it.
+      </p>
+      <a class="btn" href="https://qsl.kn0ble.com" target="_blank" rel="noopener">Open QSL Tracker</a>
+    </div>
+
+    <div class="card">
+      <h2>Request a card from KN0BLE</h2>
+      <p>
+        Worked KN0BLE and want a card back? Send a callsign below and one will
+        get mailed out.
+      </p>
+      <form class="request-form" method="POST" action="https://qsl.kn0ble.com/request-qsl">
+        <label for="callsign-index">Callsign
+          <input type="text" id="callsign-index" name="callsign" maxlength="20" required autocomplete="off">
+        </label>
+        <label for="note-index">Note (optional)
+          <input type="text" id="note-index" name="note" maxlength="200" placeholder="e.g. worked you on 20m CW, Aug 2026">
+        </label>
+        <label for="email-index">Email (optional)
+          <input type="email" id="email-index" name="email" maxlength="200" autocomplete="email">
+        </label>
+        <div class="hp-field" aria-hidden="true">
+          <label for="website-index">Leave this field empty</label>
+          <input type="text" id="website-index" name="website" tabindex="-1" autocomplete="off">
+        </div>
+        <button type="submit">Request a QSL Card</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>QSL Photo Map</h2>
+      <p>
+        Scanned QSL cards plotted by station, worldwide. Check out the
+        <a href="https://qsl.kn0ble.com/photomap" target="_blank" rel="noopener">QSL Photo Map</a>.
+      </p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <p>KN0BLE &middot; Amateur Radio &middot; <a href="https://qsl.kn0ble.com" target="_blank" rel="noopener">QSL Tracker</a></p>
+  </footer>
+</body>
+</html>

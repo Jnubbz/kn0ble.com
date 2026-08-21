@@ -194,17 +194,6 @@ table.equipment th {
   letter-spacing: 0.03em;
 }
 
-.embed-wrap {
-  width: 100%;
-  overflow-x: auto;
-  margin-top: 1rem;
-}
-
-.embed-wrap iframe {
-  display: block;
-  border: 0;
-}
-
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -277,3 +266,55 @@ footer.site-footer {
 }
 
 footer.site-footer a { color: var(--muted); }
+
+/* ---- Request forms (POTA/QSL card request) ---- */
+
+.request-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1rem;
+  max-width: 420px;
+}
+
+.request-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.request-form input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+.request-form button {
+  align-self: flex-start;
+  background: var(--amber);
+  color: var(--navy);
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.request-form button:hover { background: var(--amber-dark); }
+
+/* Honeypot field -- hidden from real visitors and screen readers,
+   left for bots that fill in every field to trip. */
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}

@@ -1,0 +1,33 @@
+# Unraid. Copy this file to
+# /mnt/cache/appdata/kn0ble-com/docker-compose.yml then:
+#   docker compose up -d
+#
+# No host ports. The qsl-tracker stack's cloudflared container dials
+# out to Cloudflare. On that tunnel, point both public hostnames at
+# this container:
+#   kn0ble.com     -> http://kn0ble-com:8080
+#   www.kn0ble.com -> http://kn0ble-com:8080
+#
+# `qsl` is the network from the qsl-tracker compose file. Started from
+# /mnt/cache/appdata/qsl-tracker, Docker names it qsl-tracker_qsl.
+# This file joins that network. It does not start a second cloudflared.
+
+services:
+  kn0ble-com:
+    image: ghcr.io/jnubbz/kn0ble-com:latest
+    container_name: kn0ble-com
+    restart: unless-stopped
+    pull_policy: always
+    networks:
+      - qsl
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+networks:
+  qsl:
+    external: true
+    name: qsl-tracker_qsl

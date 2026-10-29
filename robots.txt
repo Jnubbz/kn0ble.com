@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kn0ble.com/sitemap.xml

@@ -4,18 +4,34 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>KN0BLE -- Amateur Radio QSL Tools</title>
-  <meta name="description" content="Amateur radio callsign KN0BLE -- QSL card requests, address lookups, and the QSL photo map.">
-  <link rel="stylesheet" href="css/style.css">
+  <meta name="description" content="Amateur radio callsign KN0BLE. Request a QSL card, pull mailing addresses from an ADIF log, and browse the QSL photo map.">
+  <link rel="canonical" href="https://kn0ble.com/">
+  <meta name="theme-color" content="#0a1420">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:title" content="KN0BLE -- Amateur Radio">
+  <meta property="og:description" content="Request a QSL card from KN0BLE, pull mailing addresses from an ADIF log, and browse the QSL photo map.">
+  <meta property="og:url" content="https://kn0ble.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://kn0ble.com/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="KN0BLE -- Amateur Radio">
+  <meta name="twitter:description" content="Request a QSL card from KN0BLE, pull mailing addresses from an ADIF log, and browse the QSL photo map.">
+  <meta name="twitter:image" content="https://kn0ble.com/og.png">
+  <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <header class="site-header">
     <div class="header-inner">
-      <a href="index.html" class="callsign-mark">KN0BLE<span>Amateur Radio</span></a>
-      <nav class="site-nav">
+      <a href="/" class="callsign-mark">KN0BLE<span>Amateur Radio</span></a>
+      <nav class="site-nav" aria-label="Primary">
         <ul>
-          <li><a href="index.html" aria-current="page">Home</a></li>
+          <li><a href="/" aria-current="page">Home</a></li>
           <li><a href="https://qsl.kn0ble.com/photomap" target="_blank" rel="noopener">QSL Photo Map</a></li>
-          <li><a class="tracker-link" href="https://qsl.kn0ble.com" target="_blank" rel="noopener">Address Labels</a></li>
+          <li><a class="nav-cta" href="https://qsl.kn0ble.com" target="_blank" rel="noopener">ADIF Address Extractor</a></li>
         </ul>
       </nav>
     </div>
@@ -24,39 +40,45 @@
   <main>
     <section class="hero">
       <h1>KN0BLE</h1>
-      <p class="tagline">Mailing labels for your QSLs, card requests, and the photo map.</p>
+      <p class="tagline">ADIF address labels, QSL card requests, and the photo map.</p>
     </section>
 
     <div class="card card-cta">
-      <h2>Raw Address Ripper</h2>
+      <h2>ADIF Address Extractor</h2>
       <p>
         Need to mail QSL cards? Look up one callsign or upload your ADIF log
         and get print-ready mailing labels from QRZ &mdash; including stations
         whose QRZ page never says "direct" (a contest exchange, say). Log in
         with your own QRZ account; nothing you look up or upload is saved.
       </p>
-      <a class="btn" href="https://qsl.kn0ble.com" target="_blank" rel="noopener">Open Raw Address Ripper</a>
+      <a class="btn" href="https://qsl.kn0ble.com" target="_blank" rel="noopener">Open ADIF Address Extractor</a>
     </div>
 
     <div class="card">
       <h2>Request a card from KN0BLE</h2>
       <p>
-        Worked KN0BLE and want a card back? Send a callsign below and one will
-        get mailed out.
+        Worked KN0BLE and want a card back? Send a callsign and one will
+        get mailed out. A mailing address is optional &mdash; include it if
+        you already know where the card should go. Email is optional too,
+        and only so I can reach you if I need to.
       </p>
       <form class="request-form" method="POST" action="https://qsl.kn0ble.com/request-qsl">
         <label for="callsign-index">Callsign
-          <input type="text" id="callsign-index" name="callsign" maxlength="20" required autocomplete="off">
+          <input type="text" id="callsign-index" name="callsign" maxlength="20" required autocomplete="off" autocapitalize="characters" spellcheck="false">
         </label>
         <label for="note-index">Note (optional)
-          <input type="text" id="note-index" name="note" maxlength="200" placeholder="e.g. worked you on 20m CW, Aug 2026">
+          <input type="text" id="note-index" name="note" maxlength="200" placeholder="e.g. worked you on 20m CW">
+        </label>
+        <label for="address-index">Mailing address (optional)
+          <textarea id="address-index" name="address" maxlength="500" rows="3" autocomplete="off" placeholder="Street, city, postal code, country"></textarea>
         </label>
         <label for="email-index">Email (optional)
           <input type="email" id="email-index" name="email" maxlength="200" autocomplete="email">
+          <span class="field-hint">Only so I can reach you if I need to.</span>
         </label>
         <div class="hp-field" aria-hidden="true">
-          <label for="website-index">Leave this field empty</label>
-          <input type="text" id="website-index" name="website" tabindex="-1" autocomplete="off">
+          <label for="hp-url-index">Leave this field empty</label>
+          <input type="text" id="hp-url-index" name="hp_url" tabindex="-1" autocomplete="off">
         </div>
         <button type="submit">Request a QSL Card</button>
       </form>
@@ -72,7 +94,7 @@
   </main>
 
   <footer class="site-footer">
-    <p>KN0BLE &middot; Amateur Radio &middot; <a href="https://qsl.kn0ble.com" target="_blank" rel="noopener">Address Labels</a></p>
+    <p>KN0BLE &middot; Amateur Radio &middot; <a href="https://qsl.kn0ble.com" target="_blank" rel="noopener">ADIF Address Extractor</a></p>
   </footer>
 </body>
 </html>

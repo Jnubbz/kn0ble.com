@@ -1,11 +1,17 @@
 :root {
+  /* Same palette as qsl-tracker static/style.css. */
   --bg: #0a1420;
   --bg-elevated: #101d2e;
-  --amber: #e8a33d;
-  --amber-dark: #c9822a;
   --ink: #e7ebf0;
   --muted: #93a1b0;
-  --border: #5c7894;
+  --border: #223247;
+  /* The app's --border is 1.3:1 on a card, under the 3:1 UI-component
+     minimum. Field edges keep the lighter slate (3.69:1 on the card,
+     4.03:1 on the field fill). */
+  --control-border: #5c7894;
+  --accent: #2f9d6f;
+  /* Content links in the app (main a:not(.button-link)). */
+  --link: #6fd3a5;
   --card: #101d2e;
   --max-width: 960px;
 }
@@ -20,8 +26,8 @@ body {
   line-height: 1.6;
 }
 
-a { color: var(--amber); }
-a:hover { color: #fff; }
+a { color: var(--link); }
+a:hover { color: var(--ink); }
 
 img { max-width: 100%; display: block; }
 
@@ -30,7 +36,7 @@ img { max-width: 100%; display: block; }
 header.site-header {
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
-  color: #fff;
+  color: var(--ink);
   padding: 1.25rem 1.5rem;
 }
 
@@ -49,7 +55,7 @@ header.site-header {
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0.05em;
-  color: var(--amber);
+  color: var(--accent);
   text-decoration: none;
 }
 
@@ -73,29 +79,36 @@ nav.site-nav ul {
 }
 
 nav.site-nav a {
-  color: #c3ccd6;
+  color: var(--muted);
   text-decoration: none;
   font-size: 0.95rem;
   padding-bottom: 2px;
   border-bottom: 2px solid transparent;
 }
 
-nav.site-nav a:hover,
-nav.site-nav a:focus-visible,
+nav.site-nav a:hover {
+  color: var(--ink);
+}
+
 nav.site-nav a[aria-current="page"] {
-  color: var(--amber);
-  border-bottom-color: var(--amber);
+  color: var(--ink);
+  border-bottom-color: var(--accent);
 }
 
 nav.site-nav a:focus-visible,
 .btn:focus-visible,
-.request-form button:focus-visible {
-  outline: 2px solid var(--amber);
+.request-form button:focus-visible,
+.request-form input:focus-visible,
+.request-form textarea:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+  border-radius: 2px;
 }
 
 nav.site-nav a.nav-cta {
-  background: var(--amber);
+  background: var(--accent);
+  /* App buttons label with #fff, which is 3.40:1 on #2f9d6f.
+     Dark text on this fill is 5.44:1 (4.63:1 at the 0.9 hover). */
   color: var(--bg);
   padding: 0.4rem 0.9rem;
   border-radius: 4px;
@@ -103,9 +116,13 @@ nav.site-nav a.nav-cta {
   text-align: center;
 }
 
-nav.site-nav a.nav-cta:hover,
+nav.site-nav a.nav-cta:hover {
+  opacity: 0.9;
+  color: var(--bg);
+  border-bottom-color: transparent;
+}
+
 nav.site-nav a.nav-cta:focus-visible {
-  background: var(--amber-dark);
   color: var(--bg);
   border-bottom-color: transparent;
 }
@@ -159,6 +176,7 @@ footer.site-footer {
 }
 
 footer.site-footer a { color: var(--muted); }
+footer.site-footer a:hover { color: var(--ink); }
 
 /* ---- Request forms (QSL card request) ---- */
 
@@ -183,7 +201,7 @@ footer.site-footer a { color: var(--muted); }
 .request-form textarea {
   width: 100%;
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 6px;
   font-size: 1rem;
   font-family: inherit;
@@ -202,9 +220,7 @@ footer.site-footer a { color: var(--muted); }
 
 .request-form input:focus,
 .request-form textarea:focus {
-  outline: 2px solid var(--amber);
-  outline-offset: 2px;
-  border-color: var(--amber);
+  border-color: var(--accent);
 }
 
 .field-hint {
@@ -215,7 +231,7 @@ footer.site-footer a { color: var(--muted); }
 
 .request-form button {
   align-self: flex-start;
-  background: var(--amber);
+  background: var(--accent);
   color: var(--bg);
   border: none;
   border-radius: 6px;
@@ -225,13 +241,13 @@ footer.site-footer a { color: var(--muted); }
   cursor: pointer;
 }
 
-.request-form button:hover { background: var(--amber-dark); }
+.request-form button:hover { opacity: 0.9; }
 
 .card-cta p { margin-bottom: 1rem; }
 
 .btn {
   display: inline-block;
-  background: var(--amber);
+  background: var(--accent);
   color: var(--bg);
   border: none;
   border-radius: 6px;
@@ -241,7 +257,7 @@ footer.site-footer a { color: var(--muted); }
   text-decoration: none;
 }
 
-.btn:hover { background: var(--amber-dark); color: var(--bg); }
+.btn:hover { opacity: 0.9; color: var(--bg); }
 
 /* Honeypot field -- hidden from real visitors and screen readers,
    left for bots that fill in every field to trip. */

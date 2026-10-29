@@ -23,10 +23,12 @@ gallery, or log section.
 
 The card-request form posts to `https://qsl.kn0ble.com/request-qsl`
 (the [QSL Tracker](https://github.com/Jnubbz/qsl-tracker) app). Callsign
-is required. Note, mailing address, and email are optional. The email
-is only so KN0BLE can reach the operator if needed. There is no
-`@kn0ble.com` mailbox yet, and the notification is not sent as a reply
-to that address.
+is required. Note, mailing address (`address`), and email are optional.
+The email is only so KN0BLE can reach the operator if needed. There is
+no `@kn0ble.com` mailbox yet, and the notification should not use that
+email as a reply address. QSL Tracker has to save `address` for the
+field to be kept; the copy of the form on that app should stay in step
+with this one.
 
 ## Editing
 

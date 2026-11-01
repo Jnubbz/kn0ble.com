@@ -67,3 +67,9 @@ def test_build_query_rejects_unvalidated(bad):
 def test_str_escapes():
     from wspr.client import _str
     assert _str("a'b\\c") == "'a\\'b\\\\c'"
+
+
+def test_carto_key_passthrough(c, monkeypatch):
+    assert b'data-carto-key=""' in c.get("/wspr/").data
+    monkeypatch.setenv("WSPR_CARTO_KEY", 'abc"<x')
+    assert b'data-carto-key="abc&#34;&lt;x"' in c.get("/wspr/").data

@@ -175,6 +175,22 @@ everyone to see, which a public page is.
   at least 3 s apart. Both live in memory, so gunicorn runs one worker
   with 8 threads.
 
+### Map tiles
+
+CARTO has required a key on its basemaps since late August 2026;
+without one every tile is stamped "API KEY REQUIRED". The page uses
+Esri's keyless gray canvas tiles by default. For CARTO's Dark Matter /
+Positron instead, request a free key at
+<https://carto.com/basemaps/apikey/>, restrict it to `kn0ble.com` in
+the CARTO dashboard, and on Unraid put it in a `.env` file beside
+`compose.yaml`:
+
+```
+WSPR_CARTO_KEY=your-key
+```
+
+then `bash deploy.sh`. Tile keys are visible in the page by design.
+
 ### How it is served
 
 `services/wspr/` builds `ghcr.io/jnubbz/kn0ble-com:wspr` (and

@@ -1,13 +1,15 @@
-"""wspr.live client: validated, parameterized, cached, rate-limited.
+"""wspr.live client: validated, cached, rate-limited.
 
-All user input is validated against strict patterns AND passed to ClickHouse
-as typed query parameters ({name:Type}), never interpolated into SQL.
+All user input is validated against strict patterns before it is put in
+the SQL (wspr.live does not pass ClickHouse query parameters through).
 """
 import json
+import logging
 import os
 import re
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -36,6 +38,9 @@ COLUMNS = ("time", "band", "frequency", "tx_sign", "tx_loc", "tx_lat", "tx_lon",
 
 INT_COLS = ("band", "frequency", "distance", "snr", "power", "drift")
 FLOAT_COLS = ("tx_lat", "tx_lon", "rx_lat", "rx_lon")
+
+
+log = logging.getLogger("wspr")
 
 
 class ValidationError(ValueError):
@@ -79,23 +84,40 @@ def validate(args):
             "hours": hours, "limit": limit}
 
 
+def _str(v):
+    """ClickHouse string literal. Values are already regex-checked to
+    [A-Z0-9/] (calls) or [A-R0-9] (grids); escaping is a second layer."""
+    return "'" + v.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
 def build_query(spec):
-    """Return (sql, params). Only fixed SQL fragments are concatenated."""
-    side = spec["role"]  # 'tx' or 'rx', validated
-    where = ["time > now() - toIntervalHour({hours:UInt16})"]
-    params = {"hours": spec["hours"], "limit": spec["limit"]}
+    """Return the SQL for a validated spec.
+
+    wspr.live's endpoint drops ClickHouse query parameters (param_x),
+    so values are inlined. Safe only because validate() has already
+    restricted them: ints are int(), bands come from BANDS, role is
+    tx|rx, and strings match CALL_RE / GRID_RE. Never call this with
+    an unvalidated dict.
+    """
+    side = spec["role"]
+    if side not in ("tx", "rx"):
+        raise ValidationError("role must be tx or rx")
+    hours, limit = int(spec["hours"]), int(spec["limit"])
+    where = [f"time > now() - toIntervalHour({hours})"]
     if spec["call"]:
-        where.append(f"{side}_sign = {{call:String}}")
-        params["call"] = spec["call"]
+        if not CALL_RE.match(spec["call"]):
+            raise ValidationError("invalid callsign")
+        where.append(f"{side}_sign = {_str(spec['call'])}")
     if spec["grid"]:
-        where.append(f"startsWith({side}_loc, {{grid:String}})")
-        params["grid"] = spec["grid"]
+        if not GRID_RE.match(spec["grid"]):
+            raise ValidationError("invalid grid")
+        where.append(f"startsWith({side}_loc, {_str(spec['grid'])})")
     if spec["band"] != "all":
-        where.append("band = {band:Int16}")
-        params["band"] = spec["band"]
-    sql = (f"SELECT {', '.join(COLUMNS)} FROM wspr.rx WHERE {' AND '.join(where)} "
-           "ORDER BY time DESC LIMIT {limit:UInt32} FORMAT JSONCompact")
-    return sql, params
+        if spec["band"] not in BANDS:
+            raise ValidationError("invalid band")
+        where.append(f"band = {int(spec['band'])}")
+    return (f"SELECT {', '.join(COLUMNS)} FROM wspr.rx WHERE {' AND '.join(where)} "
+            f"ORDER BY time DESC LIMIT {limit} FORMAT JSONCompact")
 
 
 _cache = {}
@@ -104,11 +126,10 @@ _rate_lock = threading.Lock()
 _last_call = [0.0]
 
 
-def _upstream(sql, params):
+def _upstream(sql):
     # The wspr.live user is already read-only; sending readonly=1 would be
     # rejected as a settings change, so only the query and its params go up.
     qs = {"query": sql}
-    qs.update({f"param_{k}": str(v) for k, v in params.items()})
     url = WSPR_LIVE_URL + "?" + urllib.parse.urlencode(qs)
     with _rate_lock:  # serialize upstream calls and space them out
         wait = MIN_INTERVAL - (time.monotonic() - _last_call[0])
@@ -119,7 +140,12 @@ def _upstream(sql, params):
         try:
             with urllib.request.urlopen(req, timeout=20) as r:
                 return json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            body = e.read()[:500].decode("utf-8", "replace").strip()
+            log.warning("wspr.live HTTP %s: %s", e.code, body)
+            raise UpstreamError(f"wspr.live HTTP {e.code}") from e
         except Exception as e:  # noqa: BLE001
+            log.warning("wspr.live request failed: %r", e)
             raise UpstreamError(f"wspr.live request failed: {e}") from e
 
 
@@ -135,8 +161,7 @@ def fetch_spots(spec):
         from .mock import mock_rows
         rows = mock_rows(spec)
     else:
-        sql, params = build_query(spec)
-        rows = _upstream(sql, params).get("data", [])
+        rows = _upstream(build_query(spec)).get("data", [])
 
     spots = [dict(zip(COLUMNS, r)) for r in rows]
     for s in spots:

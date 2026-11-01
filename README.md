@@ -165,8 +165,12 @@ everyone to see, which a public page is.
 - The browser only talks to this site. The `kn0ble-wspr` container
   queries `https://db1.wspr.live/`, so it needs outbound HTTPS.
 - Callsign, grid, band, and hours are checked against fixed patterns
-  and sent as ClickHouse query parameters (`param_call=`), never
-  pasted into the SQL. At most 48 hours and 2000 rows per query.
+  (calls `[A-Z0-9/]`, grids `[A-R0-9]`, ints, a band whitelist) and
+  checked again in `build_query`, then put in the SQL as escaped
+  literals. wspr.live drops ClickHouse query parameters (`param_x`
+  gives "Substitution ... is not set"), so they can't be used. At most
+  48 hours and 2000 rows per query. wspr.live errors are logged:
+  `docker logs kn0ble-wspr`.
 - Results are cached for 120 s per query and calls to wspr.live are
   at least 3 s apart. Both live in memory, so gunicorn runs one worker
   with 8 threads.
@@ -193,7 +197,7 @@ checks the site, the `/wspr/` proxy, and a live wspr.live query:
 
 ```bash
 cd /boot/config/plugins/compose.manager/projects/kn0ble_com
-curl -fsSL https://raw.githubusercontent.com/Jnubbz/kn0ble.com/main/deploy/deploy-kn0ble.sh -o deploy.sh
+curl -fsSL -H "Accept: application/vnd.github.raw" "https://api.github.com/repos/Jnubbz/kn0ble.com/contents/deploy/deploy-kn0ble.sh?ref=main" -o deploy.sh
 bash deploy.sh
 ```
 

@@ -11,7 +11,9 @@
 set -euo pipefail
 
 DIR=/boot/config/plugins/compose.manager/projects/kn0ble_com
-COMPOSE_URL=https://raw.githubusercontent.com/Jnubbz/kn0ble.com/main/docker-compose.example.yml
+# GitHub API, not raw.githubusercontent.com: raw caches ~5 min, so a
+# deploy right after a merge could get the old file.
+COMPOSE_URL="https://api.github.com/repos/Jnubbz/kn0ble.com/contents/docker-compose.example.yml?ref=main"
 CALL=KN0BLE
 CF=compose.yaml   # Compose Manager's file name
 
@@ -33,7 +35,7 @@ ok "compose project: $PROJECT"
 # 1. Compose file: fetch the one from main, back up yours if it changed.
 if [[ "${1:-}" != "--no-compose" ]]; then
   tmp=$(mktemp)
-  curl -fsSL "$COMPOSE_URL" -o "$tmp" || fail "could not download compose file"
+  curl -fsSL -H "Accept: application/vnd.github.raw" "$COMPOSE_URL" -o "$tmp" || fail "could not download compose file"
   if [[ -f $CF ]] && cmp -s "$tmp" "$CF"; then
     ok "compose file already current"
     rm -f "$tmp"
@@ -82,7 +84,9 @@ get() { docker run --rm --network "$NET" busybox wget -qO- -T 30 "$1" 2>/dev/nul
 
 json=$(get "http://kn0ble-com:8080/wspr/api/spots?call=$CALL&hours=24") || true
 if [[ -z "$json" ]]; then
-  fail "no answer from the WSPR API -- docker logs kn0ble-wspr"
+  echo "--- last lines of docker logs kn0ble-wspr ---"
+  docker logs --tail 8 kn0ble-wspr 2>&1 || true
+  fail "WSPR API returned an error (see log above)"
 elif grep -q '"error"' <<<"$json"; then
   fail "WSPR API error: $json"
 else

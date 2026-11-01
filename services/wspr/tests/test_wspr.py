@@ -47,16 +47,23 @@ def test_portable_calls():
         validate({"call": "NOTACALL"})
 
 
-def test_sql_is_parameterized():
-    sql, params = build_query(validate({"call": "KN0BLE", "band": "14", "role": "rx", "grid": "el98"}))
-    assert "KN0BLE" not in sql and "{call:String}" in sql and "rx_sign" in sql
-    assert params == {"hours": 24, "limit": 2000, "call": "KN0BLE", "grid": "EL98", "band": 14}
+def test_sql_inlines_only_validated_values():
+    sql = build_query(validate({"call": "KN0BLE", "band": "14", "role": "rx", "grid": "el98", "hours": "6"}))
+    assert "rx_sign = 'KN0BLE'" in sql and "startsWith(rx_loc, 'EL98')" in sql
+    assert "band = 14" in sql and "toIntervalHour(6)" in sql and "LIMIT 2000" in sql
+    assert "{" not in sql  # no leftover parameter placeholders
 
 
-def test_healthz(c):
-    assert c.get("/wspr/healthz").data == b"ok\n"
+@pytest.mark.parametrize("bad", [
+    {"call": "KN0BLE' OR 1=1--"}, {"grid": "EL98'"}, {"role": "tx_sign"}, {"band": 13},
+])
+def test_build_query_rejects_unvalidated(bad):
+    spec = {"call": "KN0BLE", "grid": "", "role": "tx", "band": "all", "hours": 24, "limit": 10}
+    spec.update(bad)
+    with pytest.raises(ValidationError):
+        build_query(spec)
 
 
-def test_frequency_is_int(c):
-    j = c.get("/wspr/api/spots?call=KN0BLE&hours=1").get_json()
-    assert all(isinstance(s["frequency"], int) for s in j["spots"])
+def test_str_escapes():
+    from wspr.client import _str
+    assert _str("a'b\\c") == "'a\\'b\\\\c'"

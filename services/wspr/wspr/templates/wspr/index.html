@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WSPR Spots · KN0BLE</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="{{ url_for('wspr.static', filename='wspr.css') }}">
+</head>
+<body>
+<div class="wspr">
+  <header class="bar">
+    <div class="brand">
+      <span class="dot" aria-hidden="true"></span>
+      <h1>WSPR <span>spots</span></h1>
+      <a class="home" href="/">KN0BLE.com</a>
+    </div>
+
+    <form id="q" class="controls" autocomplete="off">
+      <label class="field">
+        <span>Callsign</span>
+        <input id="call" name="call" value="{{ default_call }}" maxlength="15" spellcheck="false">
+      </label>
+      <label class="field narrow">
+        <span>Grid</span>
+        <input id="grid" name="grid" maxlength="4" placeholder="EL98" spellcheck="false">
+      </label>
+      <div class="field">
+        <span>Direction</span>
+        <div class="seg" role="radiogroup" aria-label="Direction">
+          <label><input type="radio" name="role" value="tx" checked><b>Heard me</b></label>
+          <label><input type="radio" name="role" value="rx"><b>I heard</b></label>
+        </div>
+      </div>
+      <label class="field">
+        <span>Band</span>
+        <select id="band" name="band">
+          <option value="all">All bands</option>
+          {% for code, label in bands %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span>Window</span>
+        <select id="hours" name="hours">
+          <option value="1">1 hour</option>
+          <option value="6">6 hours</option>
+          <option value="12">12 hours</option>
+          <option value="24" selected>24 hours</option>
+          <option value="48">48 hours</option>
+        </select>
+      </label>
+      <button type="submit" class="go">Search</button>
+      <label class="auto"><input type="checkbox" id="auto" checked> Auto-refresh</label>
+    </form>
+  </header>
+
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <section class="tiles" aria-label="Summary">
+    <div class="tile"><span class="k">Spots</span><span class="v" id="t-spots">–</span><span class="s" id="t-spots-s"></span></div>
+    <div class="tile"><span class="k">Unique stations</span><span class="v" id="t-uniq">–</span><span class="s" id="t-uniq-s"></span></div>
+    <div class="tile"><span class="k">Longest path</span><span class="v" id="t-dx">–</span><span class="s" id="t-dx-s"></span></div>
+    <div class="tile"><span class="k">Best SNR</span><span class="v" id="t-snr">–</span><span class="s" id="t-snr-s"></span></div>
+  </section>
+
+  <section class="grid2">
+    <div class="card mapcard">
+      <div class="card-h">
+        <h2>Paths</h2>
+        <div class="legend" aria-label="Path color shows best SNR">
+          <span>Best SNR</span>
+          <span class="ramp"></span>
+          <span class="ends"><i>−30 dB</i><i>+5 dB</i></span>
+        </div>
+      </div>
+      <div id="map" role="img" aria-label="Map of WSPR paths"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h2>Spots by band</h2></div>
+      <div id="bands" class="bars"></div>
+      <div class="card-h sub"><h2>Top stations</h2><span class="hint" id="top-hint">by distance</span></div>
+      <ol id="top" class="top"></ol>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-h">
+      <h2>Spot log</h2>
+      <span class="hint" id="log-hint"></span>
+    </div>
+    <div class="tablewrap">
+      <table id="log">
+        <thead><tr>
+          <th data-k="time">Time (UTC)</th>
+          <th data-k="band">Band</th>
+          <th data-k="frequency" class="num">Freq (MHz)</th>
+          <th data-k="other">Station</th>
+          <th data-k="other_loc">Grid</th>
+          <th data-k="distance" class="num">Distance</th>
+          <th data-k="snr" class="num">SNR</th>
+          <th data-k="power" class="num">Power</th>
+          <th data-k="drift" class="num">Drift</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="foot">
+    Data from <a href="https://wspr.live" rel="noopener">wspr.live</a> (mirror of wsprnet.org) — raw reports, may include duplicates or false spots.
+  </footer>
+</div>
+
+<div id="tip" class="tip" hidden></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="{{ url_for('wspr.static', filename='wspr.js') }}"></script>
+</body>
+</html>

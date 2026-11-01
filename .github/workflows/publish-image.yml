@@ -1,5 +1,5 @@
-# Builds the container and publishes it to GHCR. Does not publish
-# GitHub Pages. Pages still deploys from the files on main.
+# Builds the site container and the WSPR viewer container and
+# publishes both to GHCR. Does not publish GitHub Pages. Pages still deploys from the files on main.
 name: Publish container image
 
 on:
@@ -40,5 +40,27 @@ jobs:
             --tag "${image}:latest" \
             --tag "${image}:${sha}" \
             .
+          docker push "${image}:latest"
+          docker push "${image}:${sha}"
+
+      # WSPR viewer: test it, then publish its own image. A failing
+      # test stops here, so :latest only moves on a passing build.
+      - name: Test WSPR viewer
+        working-directory: services/wspr
+        run: |
+          python3 -m pip install -q -r requirements.txt pytest
+          python3 -m pytest -q tests
+
+      - name: Build and push WSPR viewer
+        run: |
+          image=ghcr.io/jnubbz/kn0ble-wspr
+          sha="${GITHUB_SHA::7}"
+          docker build \
+            --platform linux/amd64 \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "${image}:latest" \
+            --tag "${image}:${sha}" \
+            services/wspr
           docker push "${image}:latest"
           docker push "${image}:${sha}"

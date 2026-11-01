@@ -34,6 +34,11 @@ services:
     image: ghcr.io/jnubbz/kn0ble-com:wspr
     container_name: kn0ble-wspr
     restart: unless-stopped
+    # Optional: WSPR_CARTO_KEY=... in a .env file next to compose.yaml
+    # switches the map to CARTO tiles. The deploy script never touches .env.
+    env_file:
+      - path: .env
+        required: false
     pull_policy: always
     networks:
       - qsl

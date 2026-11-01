@@ -4,6 +4,8 @@ Register in your app:
     from wspr import wspr_bp
     app.register_blueprint(wspr_bp)   # serves /wspr/, /wspr/api/spots, /wspr/healthz
 """
+import os
+
 from flask import Blueprint, jsonify, render_template, request
 
 from .client import BANDS, UpstreamError, ValidationError, fetch_spots, validate
@@ -18,7 +20,12 @@ DEFAULT_CALL = "KN0BLE"
 @wspr_bp.get("/")
 def index():
     bands = sorted(BANDS.items())
-    return render_template("wspr/index.html", bands=bands, default_call=DEFAULT_CALL)
+    # Optional CARTO Basemaps key (free, carto.com/basemaps/apikey).
+    # Tile keys are public by design; restrict it to kn0ble.com in the
+    # CARTO dashboard. Without one the page uses Esri's keyless tiles.
+    carto_key = os.environ.get("WSPR_CARTO_KEY", "").strip()
+    return render_template("wspr/index.html", bands=bands,
+                           default_call=DEFAULT_CALL, carto_key=carto_key)
 
 
 @wspr_bp.get("/healthz")

@@ -33,11 +33,22 @@
 
   // ---------- map ----------
   const map = L.map("map", { worldCopyJump: true, minZoom: 1, zoomSnap: 0.5 }).setView([25, -40], 2);
-  const tileStyle = v("--tiles") === "light" ? "light_all" : "dark_all";
-  L.tileLayer(`https://{s}.basemaps.cartocdn.com/${tileStyle}/{z}/{x}/{y}{r}.png`, {
-    subdomains: "abcd", maxZoom: 10,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  }).addTo(map);
+  // Basemap. CARTO needs a free key since Aug 2026 (keyless tiles are
+  // watermarked), so it is used only when WSPR_CARTO_KEY is set; the
+  // default is Esri's keyless gray canvas.
+  const light = v("--tiles") === "light";
+  const cartoKey = document.getElementById("map").dataset.cartoKey || "";
+  if (cartoKey) {
+    L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/${light ? "light_all" : "dark_all"}/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(cartoKey)}`, {
+      subdomains: "abcd", maxZoom: 10,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    }).addTo(map);
+  } else {
+    L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${light ? "Light" : "Dark"}_Gray_Base/MapServer/tile/{z}/{y}/{x}`, {
+      maxZoom: 10,
+      attribution: 'Tiles &copy; <a href="https://www.esri.com/">Esri</a> &mdash; Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+  }
   const pathLayer = L.layerGroup().addTo(map);
   const ptLayer = L.layerGroup().addTo(map);
 

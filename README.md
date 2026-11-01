@@ -14,6 +14,8 @@ gallery, or log section.
   here are root-relative (`/`, `/css/style.css`) so a miss like
   `/old/station` still loads the stylesheet and the home link.
 - `css/style.css` -- Shared styling (dark theme).
+- `services/wspr/` -- WSPR spot viewer at `/wspr/`. Flask app in its
+  own container; see "WSPR viewer" below. Not part of GitHub Pages.
 - `CNAME` -- Tells GitHub Pages to serve this site at `kn0ble.com`.
   Don't delete it or the custom domain breaks.
 - `favicon.svg`, `favicon-32.png`, `apple-touch-icon.png`, `og.png` --
@@ -110,6 +112,7 @@ docker compose up -d
 ### Auto-update
 
 `pull_policy: always` takes effect when the container is recreated.
+The commands below update both `kn0ble-com` and `kn0ble-wspr`.
 User Scripts can run this daily:
 
 ```bash
@@ -145,6 +148,54 @@ changing them.
 5. Leave GitHub Pages enabled, and leave `CNAME` in the repo, so those
    records can be put back if `https://kn0ble.com` or
    `https://www.kn0ble.com` is not coming from the container.
+
+## WSPR viewer
+
+`/wspr/` is a live WSPR spot viewer: a map of paths coloured by SNR,
+summary tiles, spots by band, top stations by distance, and a sortable
+spot log. Search by callsign and/or grid, "Heard me" (TX) or "I heard"
+(RX), band, and a 1-48 hour window. Searches are shareable URLs, for
+example `/wspr/?call=KN0BLE&band=14&hours=6`. The page refreshes every
+2 minutes (one WSPR cycle).
+
+Data comes from [wspr.live](https://wspr.live), the ClickHouse mirror
+of wsprnet.org. Its terms allow use when the results are free for
+everyone to see, which a public page is.
+
+- The browser only talks to this site. The `kn0ble-wspr` container
+  queries `https://db1.wspr.live/`, so it needs outbound HTTPS.
+- Callsign, grid, band, and hours are checked against fixed patterns
+  and sent as ClickHouse query parameters (`param_call=`), never
+  pasted into the SQL. At most 48 hours and 2000 rows per query.
+- Results are cached for 120 s per query and calls to wspr.live are
+  at least 3 s apart. Both live in memory, so gunicorn runs one worker
+  with 8 threads.
+
+### How it is served
+
+`services/wspr/` builds `ghcr.io/jnubbz/kn0ble-wspr` in the same
+workflow as the site image, after its tests pass. Both services are in
+`docker-compose.example.yml`. The site's nginx proxies `/wspr/` to
+`kn0ble-wspr:8000` on the `qsl` network, so there is no new tunnel
+hostname. nginx resolves that name per request, so the site still
+starts if the viewer is down; `/wspr/` returns 502 until it is up.
+
+The first publish creates `kn0ble-wspr` as a private package, the same
+as `kn0ble-com` was. Make it public in GitHub (Packages ->
+kn0ble-wspr -> Package settings), or the Unraid pull is denied.
+
+### Run it locally
+
+```bash
+cd services/wspr
+pip install -r requirements.txt
+WSPR_MOCK=1 python app.py      # fake spots, no network
+python app.py                  # live wspr.live data
+python -m pytest tests         # needs pytest
+```
+
+Then open `http://127.0.0.1:8000/wspr/`. On Windows PowerShell, set
+`$env:WSPR_MOCK=1` first.
 
 ## Related
 

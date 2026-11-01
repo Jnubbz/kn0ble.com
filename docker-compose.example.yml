@@ -11,6 +11,9 @@
 # `qsl` is the network from the qsl-tracker compose file. Started from
 # /mnt/cache/appdata/qsl-tracker, Docker names it qsl-tracker_qsl.
 # This file joins that network. It does not start a second cloudflared.
+#
+# kn0ble-wspr is the WSPR spot viewer. kn0ble-com's nginx proxies
+# /wspr/ to it by container name, so it needs no tunnel hostname.
 
 services:
   kn0ble-com:
@@ -26,6 +29,20 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+
+  kn0ble-wspr:
+    image: ghcr.io/jnubbz/kn0ble-wspr:latest
+    container_name: kn0ble-wspr
+    restart: unless-stopped
+    pull_policy: always
+    networks:
+      - qsl
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/wspr/healthz', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 networks:
   qsl:

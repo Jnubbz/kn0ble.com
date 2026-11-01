@@ -173,16 +173,32 @@ everyone to see, which a public page is.
 
 ### How it is served
 
-`services/wspr/` builds `ghcr.io/jnubbz/kn0ble-wspr` in the same
-workflow as the site image, after its tests pass. Both services are in
+`services/wspr/` builds `ghcr.io/jnubbz/kn0ble-com:wspr` (and
+`:wspr-<sha>`) in the same workflow as the site image, after its tests
+pass. It is a tag on the site's package, not a package of its own:
+the workflow's GITHUB_TOKEN was denied creating a new one. Both services are in
 `docker-compose.example.yml`. The site's nginx proxies `/wspr/` to
 `kn0ble-wspr:8000` on the `qsl` network, so there is no new tunnel
 hostname. nginx resolves that name per request, so the site still
 starts if the viewer is down; `/wspr/` returns 502 until it is up.
 
-The first publish creates `kn0ble-wspr` as a private package, the same
-as `kn0ble-com` was. Make it public in GitHub (Packages ->
-kn0ble-wspr -> Package settings), or the Unraid pull is denied.
+### Deploying on Unraid
+
+The stack is in Compose Manager, project folder
+`/boot/config/plugins/compose.manager/projects/kn0ble_com/`.
+`deploy/deploy-kn0ble.sh` replaces that folder's `compose.yaml` with
+`docker-compose.example.yml` from main (backing up the old one and
+showing the diff), pulls, restarts, waits for both healthchecks, and
+checks the site, the `/wspr/` proxy, and a live wspr.live query:
+
+```bash
+cd /boot/config/plugins/compose.manager/projects/kn0ble_com
+curl -fsSL https://raw.githubusercontent.com/Jnubbz/kn0ble.com/main/deploy/deploy-kn0ble.sh -o deploy.sh
+bash deploy.sh
+```
+
+`/boot` is the FAT flash drive, so run it with `bash`; `chmod +x`
+does nothing there.
 
 ### Run it locally
 

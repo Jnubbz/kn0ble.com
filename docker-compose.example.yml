@@ -1,6 +1,6 @@
-# Unraid. Copy this file to
-# /mnt/cache/appdata/kn0ble-com/docker-compose.yml then:
-#   docker compose up -d
+# Unraid, Compose Manager plugin. This is the stack's compose.yaml in
+# /boot/config/plugins/compose.manager/projects/kn0ble_com/.
+# deploy-kn0ble.sh in that folder fetches it, pulls, and restarts.
 #
 # No host ports. The qsl-tracker stack's cloudflared container dials
 # out to Cloudflare. On that tunnel, point both public hostnames at
@@ -31,7 +31,7 @@ services:
       start_period: 5s
 
   kn0ble-wspr:
-    image: ghcr.io/jnubbz/kn0ble-wspr:latest
+    image: ghcr.io/jnubbz/kn0ble-com:wspr
     container_name: kn0ble-wspr
     restart: unless-stopped
     pull_policy: always

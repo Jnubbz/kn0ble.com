@@ -40,6 +40,8 @@
     .song-btn.missing { opacity: 0.55; }
     .group-label { color: var(--muted); font-size: 0.9rem; margin: 1.5rem 0 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
     .stop-all { margin-top: 1.5rem; }
+    .setup-link { margin-top: 2rem; font-size: 0.85rem; }
+    .setup-link a { color: var(--muted); }
     .stop-all button {
       font: inherit; padding: 0.6rem 1.2rem; border-radius: 8px;
       border: 1px solid var(--control-border); background: transparent; color: var(--ink); cursor: pointer;
@@ -51,38 +53,40 @@
   <h1>Songs</h1>
   <div id="songs"></div>
   <div class="stop-all"><button type="button" id="stop">Stop</button></div>
+  <p class="setup-link"><a href="https://qsl.kn0ble.com/admin/oot">Set up songs</a></p>
 </main>
 
 <script>
-  // Each button plays /oot/audio/<file>. Drop your own recordings in
-  // that folder with these names (mp3, or change the extension here).
-  const GROUPS = [
-    { label: "Songs", songs: [
-      ["Zelda's Lullaby",  "zeldas-lullaby.mp3"],
-      ["Epona's Song",     "eponas-song.mp3"],
-      ["Saria's Song",     "sarias-song.mp3"],
-      ["Sun's Song",       "suns-song.mp3"],
-      ["Song of Time",     "song-of-time.mp3"],
-      ["Song of Storms",   "song-of-storms.mp3"],
-    ]},
-    { label: "Warp songs", songs: [
-      ["Minuet of Forest",  "minuet-of-forest.mp3"],
-      ["Bolero of Fire",    "bolero-of-fire.mp3"],
-      ["Serenade of Water", "serenade-of-water.mp3"],
-      ["Nocturne of Shadow","nocturne-of-shadow.mp3"],
-      ["Requiem of Spirit", "requiem-of-spirit.mp3"],
-      ["Prelude of Light",  "prelude-of-light.mp3"],
-    ]},
-  ];
+  // Recordings are uploaded at qsl.kn0ble.com/admin/oot and served by
+  // that app; this site's nginx proxies /oot/audio/ to it. The manifest
+  // says which songs have a file (and gives a versioned file name).
+  const FALLBACK = [
+    ["zeldas-lullaby", "Zelda's Lullaby", "Songs"],
+    ["eponas-song", "Epona's Song", "Songs"],
+    ["sarias-song", "Saria's Song", "Songs"],
+    ["suns-song", "Sun's Song", "Songs"],
+    ["song-of-time", "Song of Time", "Songs"],
+    ["song-of-storms", "Song of Storms", "Songs"],
+    ["minuet-of-forest", "Minuet of Forest", "Warp songs"],
+    ["bolero-of-fire", "Bolero of Fire", "Warp songs"],
+    ["serenade-of-water", "Serenade of Water", "Warp songs"],
+    ["nocturne-of-shadow", "Nocturne of Shadow", "Warp songs"],
+    ["requiem-of-spirit", "Requiem of Spirit", "Warp songs"],
+    ["prelude-of-light", "Prelude of Light", "Warp songs"],
+  ].map(([slug, name, group]) => ({ slug, name, group, file: null }));
 
   const root = document.getElementById("songs");
   const player = new Audio();
   let current = null;
 
+  function label(b) {
+    return b.classList.contains("missing") ? "no file" : "";
+  }
+
   function reset() {
     if (current) {
       current.classList.remove("playing");
-      current.querySelector(".state").textContent = current.classList.contains("missing") ? "no file" : "";
+      current.querySelector(".state").textContent = label(current);
     }
     current = null;
   }
@@ -90,42 +94,46 @@
   function stop() { player.pause(); player.currentTime = 0; reset(); }
 
   player.addEventListener("ended", reset);
-  player.addEventListener("error", () => {
-    if (current) { current.classList.add("missing"); }
-    reset();
-  });
+  player.addEventListener("error", reset);
 
-  for (const g of GROUPS) {
-    const h = document.createElement("div");
-    h.className = "group-label";
-    h.textContent = g.label;
-    root.appendChild(h);
-    const grid = document.createElement("div");
-    grid.className = "song-grid";
-    for (const [name, file] of g.songs) {
+  function render(songs) {
+    root.textContent = "";
+    let grid = null, group = null;
+    for (const s of songs) {
+      if (s.group !== group) {
+        group = s.group;
+        const h = document.createElement("div");
+        h.className = "group-label";
+        h.textContent = group;
+        root.appendChild(h);
+        grid = document.createElement("div");
+        grid.className = "song-grid";
+        root.appendChild(grid);
+      }
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "song-btn";
+      b.className = "song-btn" + (s.file ? "" : " missing");
       b.innerHTML = '<span class="name"></span><span class="state"></span>';
-      b.querySelector(".name").textContent = name;
-      const src = "/oot/audio/" + file;
+      b.querySelector(".name").textContent = s.name;
+      b.querySelector(".state").textContent = label(b);
       b.addEventListener("click", () => {
+        if (!s.file) return;
         if (current === b) { stop(); return; }   // tap again to stop
         stop();
         current = b;
         b.classList.add("playing");
         b.querySelector(".state").textContent = "■ stop";
-        player.src = src;
+        player.src = "/oot/audio/" + s.file;
         player.play().catch(() => {});
       });
-      // Mark buttons whose file isn't uploaded yet.
-      fetch(src, { method: "HEAD" }).then(r => {
-        if (!r.ok) { b.classList.add("missing"); b.querySelector(".state").textContent = "no file"; }
-      }).catch(() => {});
       grid.appendChild(b);
     }
-    root.appendChild(grid);
   }
+
+  fetch("/oot/audio/manifest.json", { cache: "no-store" })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => render(data.songs && data.songs.length ? data.songs : FALLBACK))
+    .catch(() => render(FALLBACK));
 
   document.getElementById("stop").addEventListener("click", stop);
 </script>

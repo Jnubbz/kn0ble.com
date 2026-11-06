@@ -56,6 +56,7 @@
   <p class="setup-link"><a href="https://qsl.kn0ble.com/admin/oot">Set up songs</a></p>
 </main>
 
+<script src="/oot/midi-player.js"></script>
 <script>
   // Recordings are uploaded at qsl.kn0ble.com/admin/oot and served by
   // that app; this site's nginx proxies /oot/audio/ to it. The manifest
@@ -78,6 +79,8 @@
   const root = document.getElementById("songs");
   const player = new Audio();
   let current = null;
+  let midi = null;          // handle from MidiPlayer.play(), when a .mid is playing
+  let token = 0;            // ignores a slow .mid load after the user moved on
 
   function label(b) {
     return b.classList.contains("missing") ? "no file" : "";
@@ -91,7 +94,13 @@
     current = null;
   }
 
-  function stop() { player.pause(); player.currentTime = 0; reset(); }
+  function stop() {
+    token++;
+    player.pause();
+    player.currentTime = 0;
+    if (midi) { midi.stop(); midi = null; }
+    reset();
+  }
 
   player.addEventListener("ended", reset);
   player.addEventListener("error", reset);
@@ -123,8 +132,18 @@
         current = b;
         b.classList.add("playing");
         b.querySelector(".state").textContent = "■ stop";
-        player.src = "/oot/audio/" + s.file;
-        player.play().catch(() => {});
+        const url = "/oot/audio/" + s.file;
+        if (window.MidiPlayer && MidiPlayer.isMidi(s.file)) {
+          MidiPlayer.unlock();   // must happen inside the tap on iPhone
+          const mine = token;
+          MidiPlayer.load(url).then(song => {
+            if (mine !== token || current !== b) return;
+            midi = MidiPlayer.play(song, () => { if (mine === token) { midi = null; reset(); } });
+          }).catch(() => { if (mine === token) reset(); });
+        } else {
+          player.src = url;
+          player.play().catch(() => {});
+        }
       });
       grid.appendChild(b);
     }

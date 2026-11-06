@@ -11,6 +11,7 @@ COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY *.html *.txt *.xml *.svg *.png /usr/share/nginx/html/
 COPY css/ /usr/share/nginx/html/css/
 COPY images/ /usr/share/nginx/html/images/
+COPY oot/ /usr/share/nginx/html/oot/
 
 # curl is in this base image; the healthcheck uses it.
 RUN chown -R nginx:nginx /usr/share/nginx/html /etc/nginx/conf.d/default.conf \

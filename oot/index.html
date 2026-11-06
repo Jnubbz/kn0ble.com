@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Songs</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    main.songs { max-width: 720px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+    .songs h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+    .song-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+    .song-btn {
+      font: inherit;
+      font-size: 1.05rem;
+      padding: 1.1rem 0.9rem;
+      border-radius: 10px;
+      border: 1px solid var(--control-border);
+      background: var(--card);
+      color: var(--ink);
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      min-height: 64px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .song-btn:hover { border-color: var(--accent); }
+    .song-btn:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+    .song-btn .state { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+    .song-btn.playing { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .song-btn.playing .state { color: #fff; }
+    .song-btn.missing { opacity: 0.55; }
+    .group-label { color: var(--muted); font-size: 0.9rem; margin: 1.5rem 0 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stop-all { margin-top: 1.5rem; }
+    .stop-all button {
+      font: inherit; padding: 0.6rem 1.2rem; border-radius: 8px;
+      border: 1px solid var(--control-border); background: transparent; color: var(--ink); cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<main class="songs">
+  <h1>Songs</h1>
+  <div id="songs"></div>
+  <div class="stop-all"><button type="button" id="stop">Stop</button></div>
+</main>
+
+<script>
+  // Each button plays /oot/audio/<file>. Drop your own recordings in
+  // that folder with these names (mp3, or change the extension here).
+  const GROUPS = [
+    { label: "Songs", songs: [
+      ["Zelda's Lullaby",  "zeldas-lullaby.mp3"],
+      ["Epona's Song",     "eponas-song.mp3"],
+      ["Saria's Song",     "sarias-song.mp3"],
+      ["Sun's Song",       "suns-song.mp3"],
+      ["Song of Time",     "song-of-time.mp3"],
+      ["Song of Storms",   "song-of-storms.mp3"],
+    ]},
+    { label: "Warp songs", songs: [
+      ["Minuet of Forest",  "minuet-of-forest.mp3"],
+      ["Bolero of Fire",    "bolero-of-fire.mp3"],
+      ["Serenade of Water", "serenade-of-water.mp3"],
+      ["Nocturne of Shadow","nocturne-of-shadow.mp3"],
+      ["Requiem of Spirit", "requiem-of-spirit.mp3"],
+      ["Prelude of Light",  "prelude-of-light.mp3"],
+    ]},
+  ];
+
+  const root = document.getElementById("songs");
+  const player = new Audio();
+  let current = null;
+
+  function reset() {
+    if (current) {
+      current.classList.remove("playing");
+      current.querySelector(".state").textContent = current.classList.contains("missing") ? "no file" : "";
+    }
+    current = null;
+  }
+
+  function stop() { player.pause(); player.currentTime = 0; reset(); }
+
+  player.addEventListener("ended", reset);
+  player.addEventListener("error", () => {
+    if (current) { current.classList.add("missing"); }
+    reset();
+  });
+
+  for (const g of GROUPS) {
+    const h = document.createElement("div");
+    h.className = "group-label";
+    h.textContent = g.label;
+    root.appendChild(h);
+    const grid = document.createElement("div");
+    grid.className = "song-grid";
+    for (const [name, file] of g.songs) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "song-btn";
+      b.innerHTML = '<span class="name"></span><span class="state"></span>';
+      b.querySelector(".name").textContent = name;
+      const src = "/oot/audio/" + file;
+      b.addEventListener("click", () => {
+        if (current === b) { stop(); return; }   // tap again to stop
+        stop();
+        current = b;
+        b.classList.add("playing");
+        b.querySelector(".state").textContent = "■ stop";
+        player.src = src;
+        player.play().catch(() => {});
+      });
+      // Mark buttons whose file isn't uploaded yet.
+      fetch(src, { method: "HEAD" }).then(r => {
+        if (!r.ok) { b.classList.add("missing"); b.querySelector(".state").textContent = "no file"; }
+      }).catch(() => {});
+      grid.appendChild(b);
+    }
+    root.appendChild(grid);
+  }
+
+  document.getElementById("stop").addEventListener("click", stop);
+</script>
+</body>
+</html>

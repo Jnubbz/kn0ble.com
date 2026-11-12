@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>TV</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    main.tv { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    .tv-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 0.75rem; }
+    .tv h1 { font-size: 1.4rem; margin: 0; display: flex; align-items: center; gap: 0.6rem; }
+    .live-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+    .live-dot.on { background: #e5484d; box-shadow: 0 0 0 0 rgba(229,72,77,0.6); animation: pulse 2s infinite; }
+    @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(229,72,77,0); } 100% { box-shadow: 0 0 0 0 rgba(229,72,77,0); } }
+    @media (prefers-reduced-motion: reduce) { .live-dot.on { animation: none; } }
+    .player {
+      position: relative; aspect-ratio: 16 / 9; width: 100%;
+      background: #000; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    }
+    .player video { width: 100%; height: 100%; display: block; background: #000; }
+    .overlay {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 0.75rem;
+      padding: 1rem; text-align: center; background: rgba(0,0,0,0.55);
+    }
+    .overlay[hidden] { display: none; }
+    .overlay p { margin: 0; max-width: 34rem; color: var(--ink); }
+    .play-big {
+      font: inherit; font-size: 1.1rem; padding: 0.8rem 1.6rem; border-radius: 999px;
+      border: none; background: var(--accent); color: #fff; cursor: pointer;
+    }
+    .play-big:focus-visible, .controls button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; align-items: center; }
+    .controls button {
+      font: inherit; padding: 0.55rem 1.1rem; border-radius: 8px;
+      border: 1px solid var(--control-border); background: transparent; color: var(--ink); cursor: pointer;
+    }
+    .controls button:hover { border-color: var(--accent); }
+    .status { color: var(--muted); font-size: 0.9rem; margin-left: auto; }
+    .spinner {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.25); border-top-color: #fff; animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<main class="tv">
+  <div class="tv-head">
+    <h1><span class="live-dot" id="dot" aria-hidden="true"></span><span id="title">TV</span></h1>
+  </div>
+
+  <div class="player">
+    <video id="video" controls playsinline preload="none"></video>
+    <div class="overlay" id="overlay">
+      <button type="button" class="play-big" id="start">&#9654; Watch</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button type="button" id="golive">Jump to live</button>
+    <button type="button" id="reload">Reload stream</button>
+    <span class="status" id="status" role="status" aria-live="polite"></span>
+  </div>
+</main>
+
+<script src="/tv/config.js"></script>
+<script src="/tv/hls.min.js"></script>
+<script>
+(function () {
+  var cfg = window.TV_CONFIG || {};
+  var url = (cfg.url || "").trim();
+  var video = document.getElementById("video");
+  var overlay = document.getElementById("overlay");
+  var statusEl = document.getElementById("status");
+  var dot = document.getElementById("dot");
+  var hls = null;
+  var retryTimer = null;
+  var netRetries = 0;
+
+  document.getElementById("title").textContent = cfg.name || "TV";
+  if (cfg.name) document.title = cfg.name;
+
+  function status(msg) { statusEl.textContent = msg || ""; }
+
+  function showOverlay(html, withButton) {
+    overlay.hidden = false;
+    overlay.innerHTML = "";
+    if (html) { var p = document.createElement("p"); p.innerHTML = html; overlay.appendChild(p); }
+    if (withButton) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "play-big"; b.textContent = withButton;
+      b.addEventListener("click", start);
+      overlay.appendChild(b);
+    }
+  }
+  function showSpinner() {
+    overlay.hidden = false;
+    overlay.innerHTML = '<div class="spinner" aria-hidden="true"></div>';
+  }
+
+  function configProblem() {
+    if (!url || /example\.com/.test(url)) return "No stream is set yet. Put the .m3u8 URL in <code>tv/config.js</code>.";
+    if (location.protocol === "https:" && /^http:\/\//i.test(url))
+      return "The stream URL is <code>http://</code>, and browsers block that on an https page. It needs an https:// URL (or a proxy).";
+    return null;
+  }
+
+  function teardown() {
+    clearTimeout(retryTimer);
+    if (hls) { hls.destroy(); hls = null; }
+    video.removeAttribute("src");
+    video.load();
+  }
+
+  function play() {
+    var p = video.play();
+    if (p && p.catch) p.catch(function () {
+      // Autoplay with sound was blocked; ask for a tap.
+      showOverlay("", "▶ Play");
+    });
+  }
+
+  function start() {
+    var problem = configProblem();
+    if (problem) { showOverlay(problem); status(""); return; }
+    teardown();
+    netRetries = 0;
+    showSpinner();
+    status("Connecting…");
+
+    if (window.Hls && Hls.isSupported()) {
+      hls = new Hls({ lowLatencyMode: true, backBufferLength: 30 });
+      hls.on(Hls.Events.MANIFEST_PARSED, function () { play(); });
+      hls.on(Hls.Events.FRAG_LOADED, function () { netRetries = 0; });
+      hls.on(Hls.Events.ERROR, function (_e, data) {
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          // hls.js already retried the playlist itself; if it never
+          // loaded, it's usually CORS, a dead URL, or the stream is down.
+          if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
+              data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT || netRetries >= 5) {
+            fail("Can't reach the stream. It may be offline, or its server doesn't allow playback from other sites (CORS).");
+            return;
+          }
+          netRetries++;
+          status("Connection lost, retrying (" + netRetries + ")…");
+          retryTimer = setTimeout(function () { if (hls) hls.startLoad(); }, 2000 * netRetries);
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          status("Recovering…");
+          hls.recoverMediaError();
+        } else {
+          fail("The stream stopped (" + data.details + ").");
+        }
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      // Older iPhones: Safari plays HLS itself.
+      video.src = url;
+      video.addEventListener("loadedmetadata", play, { once: true });
+      video.load();
+    } else {
+      fail("This browser can't play HLS streams.");
+    }
+  }
+
+  function fail(msg) {
+    teardown();
+    dot.classList.remove("on");
+    status("");
+    showOverlay(msg, "Try again");
+  }
+
+  video.addEventListener("playing", function () { overlay.hidden = true; dot.classList.add("on"); status("Live"); });
+  video.addEventListener("waiting", function () { status("Buffering…"); });
+  video.addEventListener("pause", function () { dot.classList.remove("on"); status("Paused"); });
+  video.addEventListener("error", function () {
+    if (!hls) fail("Can't play the stream. It may be offline or blocked from playing here.");
+  });
+
+  document.getElementById("start").addEventListener("click", start);
+  document.getElementById("reload").addEventListener("click", start);
+  document.getElementById("golive").addEventListener("click", function () {
+    if (hls && hls.liveSyncPosition != null) video.currentTime = hls.liveSyncPosition;
+    else if (video.seekable.length) video.currentTime = video.seekable.end(video.seekable.length - 1) - 1;
+    play();
+  });
+
+  var problem = configProblem();
+  if (problem) showOverlay(problem);
+})();
+</script>
+</body>
+</html>

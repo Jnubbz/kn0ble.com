@@ -76,8 +76,11 @@
   // /tv/config.json). Checked again every minute: switching channels
   // there changes what's playing here without a reload.
   var CONFIG_URL = "/tv/config.json";
+  // Always played through the kn0ble-tv relay on Unraid (nginx
+  // proxies /tv/live/), never from the source: that's what makes http
+  // links, raw IPTV streams and CORS-blocked sources work.
+  var STREAM_URL = "/tv/live/index.m3u8";
   var POLL_MS = 60000;
-  var url = "";
   var channelId = null;
   var loaded = false;
   var video = document.getElementById("video");
@@ -111,9 +114,7 @@
 
   function configProblem() {
     if (!loaded) return "Can't load the channel setting right now. Try again in a minute.";
-    if (!url) return "Nothing is on TV right now.";
-    if (location.protocol === "https:" && /^http:\/\//i.test(url))
-      return "The stream URL is <code>http://</code>, and browsers block that on an https page. It needs an https:// URL (or a proxy).";
+    if (!channelId) return "Nothing is on TV right now.";
     return null;
   }
 
@@ -141,17 +142,25 @@
     status("Connecting…");
 
     if (window.Hls && Hls.isSupported()) {
-      hls = new Hls({ lowLatencyMode: true, backBufferLength: 30 });
+      hls = new Hls({
+        backBufferLength: 30,
+        // The relay may take ~10-20 s to start a channel on first request.
+        manifestLoadPolicy: { default: {
+          maxTimeToFirstByteMs: 30000, maxLoadTimeMs: 30000,
+          timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 },
+          errorRetry: { maxNumRetry: 2, retryDelayMs: 2000, maxRetryDelayMs: 4000 }
+        } }
+      });
       hls.on(Hls.Events.MANIFEST_PARSED, function () { play(); });
       hls.on(Hls.Events.FRAG_LOADED, function () { netRetries = 0; });
       hls.on(Hls.Events.ERROR, function (_e, data) {
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           // hls.js already retried the playlist itself; if it never
-          // loaded, it's usually CORS, a dead URL, or the stream is down.
+          // loaded, the source is down or the relay couldn't start it.
           if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
               data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT || netRetries >= 5) {
-            fail("Can't reach the stream. It may be offline, or its server doesn't allow playback from other sites (CORS).");
+            fail("The stream didn't start. The source may be offline, or the link may be wrong.");
             return;
           }
           netRetries++;
@@ -164,11 +173,11 @@
           fail("The stream stopped (" + data.details + ").");
         }
       });
-      hls.loadSource(url);
+      hls.loadSource(STREAM_URL);
       hls.attachMedia(video);
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       // Older iPhones: Safari plays HLS itself.
-      video.src = url;
+      video.src = STREAM_URL;
       video.addEventListener("loadedmetadata", play, { once: true });
       video.load();
     } else {
@@ -201,10 +210,9 @@
   function applyConfig(data, first) {
     var ch = data && data.channel;
     var newId = ch ? ch.id : null;
-    var newUrl = ch ? String(ch.url || "") : "";
-    var changed = newId !== channelId || newUrl !== url;
+    var changed = newId !== channelId;
     loaded = true;
-    channelId = newId; url = newUrl;
+    channelId = newId;
     setTitle(ch ? ch.name : "TV");
     if (first || !changed) {
       if (first) { var p = configProblem(); if (p) showOverlay(p); }

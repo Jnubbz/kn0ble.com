@@ -1,5 +1,5 @@
-# Builds the site container and the WSPR viewer container and
-# publishes both to GHCR. Does not publish GitHub Pages. Pages still deploys from the files on main.
+# Builds the site, WSPR viewer and TV relay containers and
+# publishes them to GHCR. Does not publish GitHub Pages. Pages still deploys from the files on main.
 name: Publish container image
 
 on:
@@ -67,3 +67,24 @@ jobs:
             services/wspr
           docker push "${image}:wspr"
           docker push "${image}:wspr-${sha}"
+
+      # TV relay (/tv/live/). Same package, :tv tags.
+      - name: Test TV relay
+        working-directory: services/tv
+        run: |
+          python3 -m pip install -q pytest
+          python3 -m pytest -q tests
+
+      - name: Build and push TV relay
+        run: |
+          image=ghcr.io/jnubbz/kn0ble-com
+          sha="${GITHUB_SHA::7}"
+          docker build \
+            --platform linux/amd64 \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "${image}:tv" \
+            --tag "${image}:tv-${sha}" \
+            services/tv
+          docker push "${image}:tv"
+          docker push "${image}:tv-${sha}"

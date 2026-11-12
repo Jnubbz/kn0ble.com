@@ -14,6 +14,7 @@
 #
 # kn0ble-wspr is the WSPR spot viewer. kn0ble-com's nginx proxies
 # /wspr/ to it by container name, so it needs no tunnel hostname.
+# kn0ble-tv is the /tv stream relay; nginx proxies /tv/live/ to it.
 
 services:
   kn0ble-com:
@@ -44,6 +45,31 @@ services:
       - qsl
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/wspr/healthz', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Relay for /tv: ffmpeg pulls the channel that's on TV (set at
+  # qsl.kn0ble.com/admin/tv) and serves browser-playable HLS. Runs
+  # ffmpeg only while someone is watching. Needs TV_PROXY_TOKEN in .env,
+  # the same value as in qsl-tracker's .env.
+  # Optional in .env: TV_TRANSCODE=1 re-encodes video (for HEVC
+  # sources browsers can't play; uses CPU).
+  kn0ble-tv:
+    image: ghcr.io/jnubbz/kn0ble-com:tv
+    container_name: kn0ble-tv
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    pull_policy: always
+    networks:
+      - qsl
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4)"]
       interval: 30s
       timeout: 5s
       retries: 3

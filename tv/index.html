@@ -39,6 +39,8 @@
     }
     .controls button:hover { border-color: var(--accent); }
     .status { color: var(--muted); font-size: 0.9rem; margin-left: auto; }
+    .setup-link { margin-top: 2rem; font-size: 0.85rem; }
+    .setup-link a { color: var(--muted); }
     .spinner {
       width: 36px; height: 36px; border-radius: 50%;
       border: 3px solid rgba(255,255,255,0.25); border-top-color: #fff; animation: spin 0.9s linear infinite;
@@ -64,14 +66,20 @@
     <button type="button" id="reload">Reload stream</button>
     <span class="status" id="status" role="status" aria-live="polite"></span>
   </div>
+  <p class="setup-link"><a href="https://qsl.kn0ble.com/admin/tv">Set up TV</a></p>
 </main>
 
-<script src="/tv/config.js"></script>
 <script src="/tv/hls.min.js"></script>
 <script>
 (function () {
-  var cfg = window.TV_CONFIG || {};
-  var url = (cfg.url || "").trim();
+  // The channel comes from qsl.kn0ble.com/admin/tv (proxied here as
+  // /tv/config.json). Checked again every minute: switching channels
+  // there changes what's playing here without a reload.
+  var CONFIG_URL = "/tv/config.json";
+  var POLL_MS = 60000;
+  var url = "";
+  var channelId = null;
+  var loaded = false;
   var video = document.getElementById("video");
   var overlay = document.getElementById("overlay");
   var statusEl = document.getElementById("status");
@@ -80,8 +88,8 @@
   var retryTimer = null;
   var netRetries = 0;
 
-  document.getElementById("title").textContent = cfg.name || "TV";
-  if (cfg.name) document.title = cfg.name;
+  var titleEl = document.getElementById("title");
+  function setTitle(name) { titleEl.textContent = name || "TV"; document.title = name || "TV"; }
 
   function status(msg) { statusEl.textContent = msg || ""; }
 
@@ -92,7 +100,7 @@
     if (withButton) {
       var b = document.createElement("button");
       b.type = "button"; b.className = "play-big"; b.textContent = withButton;
-      b.addEventListener("click", start);
+      b.addEventListener("click", function () { start(); });
       overlay.appendChild(b);
     }
   }
@@ -102,7 +110,8 @@
   }
 
   function configProblem() {
-    if (!url || /example\.com/.test(url)) return "No stream is set yet. Put the .m3u8 URL in <code>tv/config.js</code>.";
+    if (!loaded) return "Can't load the channel setting right now. Try again in a minute.";
+    if (!url) return "Nothing is on TV right now.";
     if (location.protocol === "https:" && /^http:\/\//i.test(url))
       return "The stream URL is <code>http://</code>, and browsers block that on an https page. It needs an https:// URL (or a proxy).";
     return null;
@@ -181,16 +190,53 @@
     if (!hls) fail("Can't play the stream. It may be offline or blocked from playing here.");
   });
 
-  document.getElementById("start").addEventListener("click", start);
-  document.getElementById("reload").addEventListener("click", start);
+  document.getElementById("start").addEventListener("click", function () { start(); });
+  document.getElementById("reload").addEventListener("click", function () { start(); });
   document.getElementById("golive").addEventListener("click", function () {
     if (hls && hls.liveSyncPosition != null) video.currentTime = hls.liveSyncPosition;
     else if (video.seekable.length) video.currentTime = video.seekable.end(video.seekable.length - 1) - 1;
     play();
   });
 
-  var problem = configProblem();
-  if (problem) showOverlay(problem);
+  function applyConfig(data, first) {
+    var ch = data && data.channel;
+    var newId = ch ? ch.id : null;
+    var newUrl = ch ? String(ch.url || "") : "";
+    var changed = newId !== channelId || newUrl !== url;
+    loaded = true;
+    channelId = newId; url = newUrl;
+    setTitle(ch ? ch.name : "TV");
+    if (first || !changed) {
+      if (first) { var p = configProblem(); if (p) showOverlay(p); }
+      return;
+    }
+    // Channel switched at /admin/tv. If something was playing, follow it.
+    var wasWatching = !!hls || !!video.currentSrc;
+    teardown();
+    dot.classList.remove("on");
+    var problem = configProblem();
+    if (problem) { status(""); showOverlay(problem); return; }
+    if (wasWatching) start(); else showOverlay("", "\u25B6 Watch");
+  }
+
+  function fetchConfig(first) {
+    return fetch(CONFIG_URL, { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) { applyConfig(d, first); })
+      .catch(function () { if (first) { loaded = false; showOverlay(configProblem(), "Try again"); } });
+  }
+
+  // "Watch" / "Try again" re-read the setting before playing.
+  start = (function (play) {
+    return function () {
+      if (!loaded) { fetchConfig(true).then(function () { if (loaded && !configProblem()) play(); }); return; }
+      play();
+    };
+  })(start);
+
+  fetchConfig(true);
+  setInterval(function () { if (!document.hidden) fetchConfig(false); }, POLL_MS);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) fetchConfig(false); });
 })();
 </script>
 </body>

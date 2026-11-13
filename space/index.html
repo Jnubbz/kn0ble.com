@@ -63,6 +63,13 @@
     .b-lin { background: #23385a; color: #a9c8ff; }
     .b-oth { background: #333d4a; color: #c9d3de; }
     .b-warn { background: #4d3a14; color: #f0c674; }
+    .st-heard { background: #1d4d3a; color: #9be7c4; }
+    .st-crew { background: #1d3f4d; color: #9bdbe7; }
+    .st-tlm { background: #4d3a14; color: #f0c674; }
+    .st-not { background: #4d1d22; color: #f3a6ab; }
+    .st-none { background: #333d4a; color: #c9d3de; }
+    .controls label.chk { flex-direction: row; align-items: center; gap: .4rem; color: var(--ink); padding-bottom: .5rem; }
+    .controls label.chk input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
     .p-body { display: flex; gap: 1.25rem; padding: 0 .9rem .9rem; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: .9rem; }
     .p-plot { flex: 0 0 170px; }
     .p-info { flex: 1 1 18rem; min-width: 0; }
@@ -170,6 +177,7 @@
             <option value="all">Everything with a transponder</option>
           </select>
         </label>
+        <label class="chk" for="heard-only"><input type="checkbox" id="heard-only"> Only heard in last 48 h (AMSAT)</label>
         <div class="btns">
           <button type="button" class="sbtn ghost" id="sync-btn">Sync now</button>
           <button type="button" class="sbtn ghost" id="ics-btn" disabled>Add to calendar (.ics)</button>
@@ -186,9 +194,9 @@
         <li><strong>Point at (az)</strong> is the compass bearing (true north). Elevation is degrees above the horizon. The circle plot is the sky: center is straight up, edge is the horizon, green dot is where it rises, red is where it sets.</li>
         <li><strong>Frequencies are Doppler-corrected</strong> for the moment shown. FM birds: program the rise / highest / set columns as memories and step through them. Most people fix the 2&nbsp;m side and only tune the 70&nbsp;cm side.</li>
         <li>Orbit data refreshes from CelesTrak every couple of hours (the site caches it) and frequency data from SatNOGS daily. Leave the page open and it keeps itself current. <strong>Sync now</strong> pulls again and recalculates.</li>
-        <li>Being listed does not mean a repeater is switched on. Check <a href="https://www.amsat.org/status/" target="_blank" rel="noopener">AMSAT live status</a> before a pass.</li>
+        <li>The colored tag on each pass is the latest report from <a href="https://www.amsat.org/status/" target="_blank" rel="noopener">AMSAT live status</a> (synced every few minutes): green heard, red not heard, amber telemetry only. Tick "Only heard in last 48 h" to hide birds nobody has worked lately.</li>
       </ul>
-      <p class="small muted">Orbits: <a href="https://celestrak.org/" target="_blank" rel="noopener">CelesTrak</a>. Transmitters: <a href="https://db.satnogs.org/" target="_blank" rel="noopener">SatNOGS DB</a> (CC BY-SA). Address lookup: <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noopener">OpenStreetMap Nominatim</a>. Math: <a href="https://github.com/shashwatak/satellite-js" target="_blank" rel="noopener">satellite.js</a> (MIT).</p>
+      <p class="small muted">Orbits: <a href="https://celestrak.org/" target="_blank" rel="noopener">CelesTrak</a>. Live status: <a href="https://www.amsat.org/status/" target="_blank" rel="noopener">AMSAT</a>. Transmitters: <a href="https://db.satnogs.org/" target="_blank" rel="noopener">SatNOGS DB</a> (CC BY-SA). Address lookup: <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noopener">OpenStreetMap Nominatim</a>. Math: <a href="https://github.com/shashwatak/satellite-js" target="_blank" rel="noopener">satellite.js</a> (MIT).</p>
     </div>
   </main>
 

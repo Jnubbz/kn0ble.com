@@ -18,12 +18,17 @@
 
   const TLE_MAX_AGE_MS = 2 * 3600e3;   // CelesTrak updates roughly every 2 h
   const TX_MAX_AGE_MS = 24 * 3600e3;
+  const AMSAT_MAX_AGE_MS = 10 * 60e3;   // AMSAT asks for <= 1 poll / 5 min; the site caches 5 min
+  const AMSAT_CAT_MAX_AGE_MS = 24 * 3600e3;
+  const RECENT_MS = 48 * 3600e3;
   const RECALC_MS = 10 * 60e3;
 
   const LS = {
     loc: 'kn0ble.space.loc.v1',
     tle: 'kn0ble.space.tle.v1',
     tx: 'kn0ble.space.tx.v1',
+    amsat: 'kn0ble.space.amsat.v1',
+    amsatCat: 'kn0ble.space.amsatcat.v1',
     prefs: 'kn0ble.space.prefs.v1',
   };
 
@@ -274,6 +279,102 @@
   }
 
   // ---------------------------------------------------------------
+  // AMSAT live status (status.amsat.org API v1)
+  //   catalog.php  -> status names <-> NORAD numbers (one sat can have
+  //                   several names, e.g. AO-7[A] / AO-7[B])
+  //   summary.php  -> per name and report type: count + latest time
+  // ---------------------------------------------------------------
+  async function fetchAmsatCatalog() {
+    const urls = ['/space/api/amsat/catalog', 'https://status.amsat.org/api/v1/catalog.php'];
+    for (const u of urls) {
+      try {
+        const res = await fetchJson(u, 15000);
+        const rows = Array.isArray(res) ? res : (res && Array.isArray(res.data) ? res.data : null);
+        if (!rows) continue;
+        return rows.filter(r => r && r.name).map(r => ({ name: r.name, disp: r.display_name || r.name, n: Number(r.norad_cat_id) || 0 }));
+      } catch (e) { /* next */ }
+    }
+    throw new Error('No AMSAT catalog');
+  }
+
+  async function fetchAmsatSummary() {
+    const urls = ['/space/api/amsat/summary', 'https://status.amsat.org/api/v1/summary.php?hours=48'];
+    for (const u of urls) {
+      try {
+        const res = await fetchJson(u, 15000);
+        const rows = Array.isArray(res) ? res : (res && Array.isArray(res.data) ? res.data : null);
+        if (!rows) continue;
+        return rows.filter(r => r && r.name && r.report).map(r => ({
+          name: r.name, report: r.report, count: Number(r.report_count) || 0,
+          t: parseUtc(r.latest_observation_time || r.latest_reported_time),
+        }));
+      } catch (e) { /* next */ }
+    }
+    throw new Error('No AMSAT status');
+  }
+
+  // AMSAT timestamps are UTC; accept "2026-11-13 20:15:00", ISO with or without Z.
+  function parseUtc(v) {
+    if (!v) return 0;
+    let str = String(v).trim().replace(' ', 'T');
+    if (!/[zZ]|[+-]\d\d:?\d\d$/.test(str)) str += 'Z';
+    const t = Date.parse(str);
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  const AMSAT_LABEL = { 'Heard': 'Heard', 'Telemetry Only': 'Telemetry only', 'Not Heard': 'Not heard', 'Crew Active': 'Crew active' };
+  const AMSAT_CLASS = { 'Heard': 'st-heard', 'Telemetry Only': 'st-tlm', 'Not Heard': 'st-not', 'Crew Active': 'st-crew' };
+
+  // Status for one NORAD number: { latest: {name, report, t}, modes: [{name, disp, latest, counts}] }
+  function amsatFor(sat) {
+    if (!state.amsatCat || !state.amsat) return null;
+    let names = state.amsatCat.filter(c => c.n === sat.norad);
+    if (!names.length) return { none: true };
+    // For an FM bird, prefer FM-ish status entries (ISS has FM, SSTV, packet...).
+    if (sat.type === 'FM') {
+      const fm = names.filter(c => /FM/i.test(c.name) || /FM/i.test(c.disp));
+      if (fm.length) names = fm;
+    }
+    const modes = names.map(c => {
+      const rows = state.amsat.filter(r => r.name === c.name);
+      const latest = rows.reduce((a, r) => (!a || r.t > a.t ? r : a), null);
+      const counts = {};
+      rows.forEach(r => { counts[r.report] = (counts[r.report] || 0) + r.count; });
+      return { name: c.name, disp: c.disp, latest, counts };
+    });
+    const latest = modes.map(m => m.latest).filter(Boolean).reduce((a, r) => (!a || r.t > a.t ? r : a), null);
+    return { latest, modes };
+  }
+
+  function heardRecently(sat) {
+    const a = amsatFor(sat);
+    if (!a || a.none) return null;               // unknown: don't hide it
+    return a.modes.some(m => (m.counts['Heard'] || 0) + (m.counts['Crew Active'] || 0) > 0 && m.latest && Date.now() - m.latest.t < RECENT_MS);
+  }
+
+  function amsatBadge(sat) {
+    const a = amsatFor(sat);
+    if (!a) return '';
+    if (a.none) return '';
+    if (!a.latest) return ' <span class="badge st-none" title="No AMSAT reports in the last 48 h">no reports</span>';
+    return ` <span class="badge ${AMSAT_CLASS[a.latest.report] || 'st-none'}" title="Latest AMSAT report">${esc(AMSAT_LABEL[a.latest.report] || a.latest.report)} ${esc(fmtAgo(a.latest.t).replace(' ago', ''))}</span>`;
+  }
+
+  function amsatHtml(sat) {
+    const a = amsatFor(sat);
+    const link = '<a href="https://www.amsat.org/status/" target="_blank" rel="noopener">AMSAT status</a>';
+    if (!a) return `<p class="small muted">AMSAT live status not loaded. ${link}</p>`;
+    if (a.none) return `<p class="small muted">Not tracked on the ${link} page.</p>`;
+    const rows = a.modes.map(m => {
+      const c = m.counts;
+      const parts = ['Heard', 'Crew Active', 'Telemetry Only', 'Not Heard'].filter(k => c[k]).map(k => `${c[k]} ${AMSAT_LABEL[k].toLowerCase()}`);
+      const last = m.latest ? `<span class="badge ${AMSAT_CLASS[m.latest.report] || 'st-none'}">${esc(AMSAT_LABEL[m.latest.report] || m.latest.report)}</span> ${esc(fmtAgo(m.latest.t))}` : '<span class="muted">no reports</span>';
+      return `<tr><td>${esc(m.disp)}</td><td>${last}</td><td>${parts.join(', ') || '-'}</td></tr>`;
+    }).join('');
+    return `<div class="tablewrap"><table class="txtable"><thead><tr><th>Mode</th><th>Latest report</th><th>Last 48 h</th></tr></thead><tbody>${rows}</tbody></table></div><p class="small muted">From ${link}. Heard a pass? Report it there.</p>`;
+  }
+
+  // ---------------------------------------------------------------
   // Orbit math
   // ---------------------------------------------------------------
   function makeObserver(loc) {
@@ -402,7 +503,8 @@
     loc: store.get(LS.loc),
     tle: null, tleAt: 0, tleStale: false,
     tx: null, txAt: 0,
-    prefs: Object.assign({ minEl: 10, hours: 24, show: 'curated' }, store.get(LS.prefs) || {}),
+    amsat: null, amsatAt: 0, amsatCat: null, amsatCatAt: 0,
+    prefs: Object.assign({ minEl: 10, hours: 24, show: 'curated', heardOnly: false }, store.get(LS.prefs) || {}),
     passes: [],
     computedAt: 0,
     syncing: false,
@@ -429,6 +531,7 @@
         list.push({ norad, name, type: 'Other', tle, live: true, note: 'From SatNOGS live data. Check status before you call CQ.' });
       }
     }
+    if (state.prefs.heardOnly && state.amsat) return list.filter(s => heardRecently(s) !== false);
     return list;
   }
 
@@ -530,7 +633,7 @@
     return `<details class="pass ${live ? 'is-live' : ''}" data-idx="${idx}" ${live ? 'open' : ''}>
       <summary>
         <span class="p-when"><strong>${fmtTime(new Date(p.aos))}</strong><span class="sub">${fmtDay(new Date(p.aos))} &middot; <span class="countdown" data-aos="${p.aos}" data-los="${p.los}">${live ? 'up now' : fmtIn(p.aos - now)}</span></span></span>
-        <span class="p-sat"><strong>${esc(s.name)}</strong> <span class="badge b-${badge === 'FM' ? 'fm' : badge === 'Other' ? 'oth' : 'lin'}">${badge}</span>${sunBad ? ' <span class="badge b-warn" title="Needs sunlight">eclipse</span>' : ''}</span>
+        <span class="p-sat"><strong>${esc(s.name)}</strong> <span class="badge b-${badge === 'FM' ? 'fm' : badge === 'Other' ? 'oth' : 'lin'}">${badge}</span>${sunBad ? ' <span class="badge b-warn" title="Needs sunlight">eclipse</span>' : ''}${amsatBadge(s)}</span>
         <span class="p-el q-${quality}"><strong>${Math.round(p.maxEl)}&deg;</strong><span class="sub">max el</span></span>
         <span class="p-dir">${compass(p.aosAz)} &rarr; ${compass(p.losAz)}<span class="sub">${fmtDur(p.los - p.aos)} long</span></span>
       </summary>
@@ -551,6 +654,7 @@
           </table></div>
           <p class="small">${sunNote(p, s)}</p>
           ${s.note ? `<p class="small">${esc(s.note)}</p>` : ''}
+          <details class="livetx" open><summary>AMSAT live status</summary>${amsatHtml(s)}</details>
           <details class="livetx"><summary>Live transmitter list (SatNOGS)</summary>${liveTxHtml(s.norad)}</details>
         </div>
       </div>
@@ -561,7 +665,8 @@
     const el = $('#data-status');
     const tleTxt = state.tle ? `Orbits: CelesTrak, ${fmtAgo(state.tleAt)}${state.tleStale ? ' <span class="warn">(could not refresh, using saved copy)</span>' : ''}` : 'Orbits: not loaded yet';
     const txTxt = state.tx ? `Live frequencies: SatNOGS, ${fmtAgo(state.txAt)}` : 'Live frequencies: not loaded';
-    el.innerHTML = `${tleTxt} &middot; ${txTxt} &middot; Curated frequencies: ${esc(FREQ_ASOF)}`;
+    const amTxt = state.amsat ? `AMSAT status: ${fmtAgo(state.amsatAt)}` : 'AMSAT status: not loaded';
+    el.innerHTML = `${tleTxt} &middot; ${amTxt} &middot; ${txTxt} &middot; Curated frequencies: ${esc(FREQ_ASOF)}`;
     $('#sync-btn').disabled = state.syncing;
     $('#sync-btn').textContent = state.syncing ? 'Syncing...' : 'Sync now';
   }
@@ -708,6 +813,18 @@
         store.set(LS.tx, { at: state.txAt, tx });
       }).catch(() => { /* keep old */ }));
     }
+    if (force || !state.amsatCat || now - state.amsatCatAt > AMSAT_CAT_MAX_AGE_MS) {
+      jobs.push(fetchAmsatCatalog().then(c => {
+        state.amsatCat = c; state.amsatCatAt = Date.now();
+        store.set(LS.amsatCat, { at: state.amsatCatAt, c });
+      }).catch(() => { /* keep old */ }));
+    }
+    if (force || !state.amsat || now - state.amsatAt > AMSAT_MAX_AGE_MS) {
+      jobs.push(fetchAmsatSummary().then(a => {
+        state.amsat = a; state.amsatAt = Date.now();
+        store.set(LS.amsat, { at: state.amsatAt, a });
+      }).catch(() => { /* keep old */ }));
+    }
     await Promise.all(jobs);
     state.syncing = false;
     computeAll();
@@ -721,6 +838,10 @@
   function init() {
     const savedTle = store.get(LS.tle);
     if (savedTle && savedTle.text) { state.tle = parseTle(savedTle.text); state.tleAt = savedTle.at || 0; }
+    const savedAm = store.get(LS.amsat);
+    if (savedAm && Array.isArray(savedAm.a)) { state.amsat = savedAm.a; state.amsatAt = savedAm.at || 0; }
+    const savedCat = store.get(LS.amsatCat);
+    if (savedCat && Array.isArray(savedCat.c)) { state.amsatCat = savedCat.c; state.amsatCatAt = savedCat.at || 0; }
     const savedTx = store.get(LS.tx);
     if (savedTx && Array.isArray(savedTx.tx)) { state.tx = savedTx.tx; state.txAt = savedTx.at || 0; }
 
@@ -735,13 +856,14 @@
     $('#min-el').value = String(state.prefs.minEl);
     $('#hours').value = String(state.prefs.hours);
     $('#show').value = state.prefs.show;
+    $('#heard-only').checked = !!state.prefs.heardOnly;
 
     const savePrefs = () => {
-      state.prefs = { minEl: Number($('#min-el').value), hours: Number($('#hours').value), show: $('#show').value };
+      state.prefs = { minEl: Number($('#min-el').value), hours: Number($('#hours').value), show: $('#show').value, heardOnly: $('#heard-only').checked };
       store.set(LS.prefs, state.prefs);
       computeAll(); renderPasses();
     };
-    ['#min-el', '#hours', '#show'].forEach(id => $(id).addEventListener('change', savePrefs));
+    ['#min-el', '#hours', '#show', '#heard-only'].forEach(id => $(id).addEventListener('change', savePrefs));
 
     $('#loc-form').addEventListener('submit', async e => {
       e.preventDefault();
@@ -790,12 +912,12 @@
 
     setInterval(tick, 1000);
     setInterval(() => { computeAll(); renderPasses(); }, RECALC_MS);
-    setInterval(() => { sync(); renderStatus(); }, 15 * 60e3);   // sync() only fetches what is stale
+    setInterval(() => { sync(); renderStatus(); }, 10 * 60e3);   // sync() only fetches what is stale
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { sync(); } });
   }
 
   // Exposed for tests.
-  window.KN0BLE_SPACE = { gridToLatLon, latLonToGrid, parseTle, findPasses, makeObserver, look, rxFreq, txFreq, sunlit, state, computeAll, buildIcs, refresh: () => { computeAll(); renderAll(); } };
+  window.KN0BLE_SPACE = { amsatFor, parseUtc, gridToLatLon, latLonToGrid, parseTle, findPasses, makeObserver, look, rxFreq, txFreq, sunlit, state, computeAll, buildIcs, refresh: () => { computeAll(); renderAll(); } };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

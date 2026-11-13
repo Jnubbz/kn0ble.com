@@ -5,17 +5,23 @@ FROM nginxinc/nginx-unprivileged:1.30-alpine
 
 USER root
 
+# CA bundle so nginx can verify CelesTrak / SatNOGS / Nominatim TLS
+# for the /space/api/ proxies.
+RUN apk add --no-cache ca-certificates
+
 RUN rm -rf /usr/share/nginx/html/*
 
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY nginx/space-proxy.inc /etc/nginx/conf.d/space-proxy.inc
 COPY *.html *.txt *.xml *.svg *.png /usr/share/nginx/html/
 COPY css/ /usr/share/nginx/html/css/
 COPY images/ /usr/share/nginx/html/images/
 COPY oot/ /usr/share/nginx/html/oot/
 COPY tv/ /usr/share/nginx/html/tv/
+COPY space/ /usr/share/nginx/html/space/
 
 # curl is in this base image; the healthcheck uses it.
-RUN chown -R nginx:nginx /usr/share/nginx/html /etc/nginx/conf.d/default.conf \
+RUN chown -R nginx:nginx /usr/share/nginx/html /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/space-proxy.inc \
     && command -v curl >/dev/null
 
 # nginx -t as root leaves /tmp/nginx.pid owned by root, and the

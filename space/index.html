@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KN0BLE -- Satellite Passes</title>
+  <meta name="description" content="Upcoming ham radio satellite passes for your location: when, where to point, and Doppler-corrected frequencies.">
+  <link rel="canonical" href="https://kn0ble.com/space/">
+  <meta name="theme-color" content="#0a1420">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .space-intro { color: var(--muted); margin: 0 0 1rem; }
+    .loc-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .loc-row input {
+      flex: 1 1 16rem; min-width: 0; padding: .6rem .75rem; font: inherit; color: var(--ink);
+      background: var(--bg); border: 1px solid var(--control-border); border-radius: 6px;
+    }
+    .loc-row input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .sbtn {
+      font: inherit; font-weight: 600; padding: .55rem 1rem; border-radius: 6px; cursor: pointer;
+      background: var(--accent); color: var(--bg); border: 1px solid var(--accent);
+    }
+    .sbtn.ghost { background: transparent; color: var(--ink); border-color: var(--control-border); }
+    .sbtn:disabled { opacity: .55; cursor: default; }
+    .sbtn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+    .linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--link); cursor: pointer; text-decoration: underline; }
+    #loc-form.collapsed { display: none; }
+    #loc-current { display: flex; flex-direction: column; margin-bottom: .5rem; }
+    .loc-actions { display: flex; gap: 1rem; margin-top: .35rem; }
+    .loc-msg { min-height: 1.2em; margin: .5rem 0 0; font-size: .9rem; color: var(--muted); }
+    .sub { display: block; font-size: .8rem; color: var(--muted); font-weight: 400; }
+    .muted { color: var(--muted); }
+    .small { font-size: .88rem; margin: .5rem 0 0; }
+    .warn { color: #f0b85a; }
+
+    .controls { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: end; }
+    .controls label { display: flex; flex-direction: column; font-size: .85rem; color: var(--muted); gap: .2rem; }
+    .controls select {
+      font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--control-border);
+      border-radius: 6px; padding: .45rem .5rem;
+    }
+    .controls .btns { display: flex; gap: .5rem; margin-left: auto; flex-wrap: wrap; }
+    #data-status { font-size: .8rem; color: var(--muted); margin: .9rem 0 0; }
+
+    .dayhdr { margin: 1.5rem 0 .5rem; font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .empty { color: var(--muted); padding: 1rem 0; }
+    details.pass { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: .5rem; }
+    details.pass.is-live { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+    details.pass > summary {
+      list-style: none; cursor: pointer; padding: .7rem .9rem;
+      display: grid; grid-template-columns: 7.5rem 1fr 4.5rem 7rem; gap: .75rem; align-items: center;
+    }
+    details.pass > summary::-webkit-details-marker { display: none; }
+    details.pass > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+    .p-el strong { font-size: 1.15rem; }
+    .q-great strong { color: var(--link); }
+    .q-low strong { color: var(--muted); }
+    .badge { display: inline-block; font-size: .7rem; font-weight: 700; padding: .05rem .4rem; border-radius: 4px; vertical-align: middle; letter-spacing: .03em; }
+    .b-fm { background: #1d4d3a; color: #9be7c4; }
+    .b-lin { background: #23385a; color: #a9c8ff; }
+    .b-oth { background: #333d4a; color: #c9d3de; }
+    .b-warn { background: #4d3a14; color: #f0c674; }
+    .p-body { display: flex; gap: 1.25rem; padding: 0 .9rem .9rem; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: .9rem; }
+    .p-plot { flex: 0 0 170px; }
+    .p-info { flex: 1 1 18rem; min-width: 0; }
+    .polar { width: 170px; height: 170px; display: block; }
+    .pp-ring { fill: none; stroke: var(--border); stroke-width: 1; }
+    .pp-lbl { fill: var(--muted); font-size: 9px; text-anchor: middle; }
+    .pp-track { fill: none; stroke: var(--link); stroke-width: 2.25; }
+    .pp-aos { fill: #4cc38a; }
+    .pp-los { fill: #e5676b; }
+    .pp-tca { fill: var(--ink); }
+    .pp-live { fill: #f0c674; stroke: var(--bg); stroke-width: 1.5; }
+    .legend { font-size: .75rem; color: var(--muted); display: flex; gap: .4rem; align-items: center; margin-top: .25rem; }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+    .dot.aos { background: #4cc38a; } .dot.los { background: #e5676b; } .dot.livec { background: #f0c674; }
+    .tablewrap { overflow-x: auto; }
+    table.ptable, table.txtable { border-collapse: collapse; width: 100%; font-size: .88rem; }
+    .ptable th, .ptable td, .txtable th, .txtable td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .ptable thead th, .txtable thead th { color: var(--muted); font-weight: 600; }
+    .ptable td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ptable tbody th { font-weight: 600; }
+    .livebox { background: #14301f; border: 1px solid var(--accent); border-radius: 6px; padding: .5rem .7rem; margin: 0 0 .6rem; }
+    details.livetx { margin-top: .6rem; }
+    details.livetx summary { cursor: pointer; color: var(--link); font-size: .88rem; }
+    .howto { font-size: .9rem; color: var(--muted); }
+    .howto li { margin-bottom: .3rem; }
+
+    @media (max-width: 640px) {
+      details.pass > summary { grid-template-columns: 1fr auto; grid-template-areas: "when el" "sat dir"; row-gap: .25rem; }
+      .p-when { grid-area: when; } .p-sat { grid-area: sat; } .p-el { grid-area: el; text-align: right; } .p-dir { grid-area: dir; text-align: right; }
+      .p-plot { margin: 0 auto; }
+      .controls .btns { margin-left: 0; }
+      .p-body { padding-left: .6rem; padding-right: .6rem; }
+      .ptable th, .ptable td { padding: .3rem .3rem; font-size: .8rem; }
+      .ptable td { white-space: normal; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="/" class="callsign-mark">KN0BLE<span>Amateur Radio</span></a>
+      <nav class="site-nav" aria-label="Primary">
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/space/" aria-current="page">Satellites</a></li>
+          <li><a href="/wspr/">WSPR Spots</a></li>
+          <li><a href="https://qsl.kn0ble.com/photomap" target="_blank" rel="noopener">QSL Photo Map</a></li>
+          <li><a class="nav-cta" href="https://qsl.kn0ble.com" target="_blank" rel="noopener">ADIF Address Extractor</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Satellite Passes</h1>
+      <p class="tagline">When the ham satellites come over, where to point, and what frequency to use.</p>
+    </section>
+
+    <div class="card">
+      <h2>Your location</h2>
+      <div id="loc-current" hidden></div>
+      <div class="loc-actions" id="loc-actions">
+        <button type="button" class="linkbtn" id="loc-change">Change location</button>
+        <button type="button" class="linkbtn" id="loc-forget">Forget it</button>
+      </div>
+      <form id="loc-form" autocomplete="off">
+        <p class="space-intro">Type your address, a grid square (like EL98gp), or <em>lat, lon</em>. It stays in this browser; nothing is saved on the server.</p>
+        <div class="loc-row">
+          <label for="loc-input" class="visually-hidden" style="position:absolute;left:-9999px">Address, grid square, or lat, lon</label>
+          <input id="loc-input" type="text" placeholder="123 Main St, Orlando FL   or   EL98gp" autocomplete="street-address">
+          <button type="submit" class="sbtn" id="loc-go">Find passes</button>
+          <button type="button" class="sbtn ghost" id="loc-gps">Use my location</button>
+        </div>
+      </form>
+      <p class="loc-msg" id="loc-msg" role="status" aria-live="polite"></p>
+    </div>
+
+    <div class="card">
+      <div class="controls">
+        <label for="min-el">Highest at least
+          <select id="min-el">
+            <option value="0">0&deg; (every pass)</option>
+            <option value="10">10&deg;</option>
+            <option value="15">15&deg;</option>
+            <option value="20">20&deg;</option>
+            <option value="30">30&deg;</option>
+            <option value="45">45&deg; (overhead-ish)</option>
+          </select>
+        </label>
+        <label for="hours">Look ahead
+          <select id="hours">
+            <option value="6">6 hours</option>
+            <option value="12">12 hours</option>
+            <option value="24">24 hours</option>
+            <option value="48">2 days</option>
+            <option value="72">3 days</option>
+          </select>
+        </label>
+        <label for="show">Satellites
+          <select id="show">
+            <option value="curated">Active FM + linear</option>
+            <option value="fm">FM only (HT friendly)</option>
+            <option value="linear">Linear (SSB/CW) only</option>
+            <option value="all">Everything with a transponder</option>
+          </select>
+        </label>
+        <div class="btns">
+          <button type="button" class="sbtn ghost" id="sync-btn">Sync now</button>
+          <button type="button" class="sbtn ghost" id="ics-btn" disabled>Add to calendar (.ics)</button>
+        </div>
+      </div>
+      <p id="data-status" role="status" aria-live="polite"></p>
+    </div>
+
+    <section id="passes" aria-label="Upcoming passes"></section>
+
+    <div class="card howto">
+      <h2>Reading this</h2>
+      <ul>
+        <li><strong>Point at (az)</strong> is the compass bearing (true north). Elevation is degrees above the horizon. The circle plot is the sky: center is straight up, edge is the horizon, green dot is where it rises, red is where it sets.</li>
+        <li><strong>Frequencies are Doppler-corrected</strong> for the moment shown. FM birds: program the rise / highest / set columns as memories and step through them. Most people fix the 2&nbsp;m side and only tune the 70&nbsp;cm side.</li>
+        <li>Orbit data refreshes from CelesTrak every couple of hours (the site caches it) and frequency data from SatNOGS daily. Leave the page open and it keeps itself current. <strong>Sync now</strong> pulls again and recalculates.</li>
+        <li>Being listed does not mean a repeater is switched on. Check <a href="https://www.amsat.org/status/" target="_blank" rel="noopener">AMSAT live status</a> before a pass.</li>
+      </ul>
+      <p class="small muted">Orbits: <a href="https://celestrak.org/" target="_blank" rel="noopener">CelesTrak</a>. Transmitters: <a href="https://db.satnogs.org/" target="_blank" rel="noopener">SatNOGS DB</a> (CC BY-SA). Address lookup: <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noopener">OpenStreetMap Nominatim</a>. Math: <a href="https://github.com/shashwatak/satellite-js" target="_blank" rel="noopener">satellite.js</a> (MIT).</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <p>KN0BLE &middot; Amateur Radio &middot; <a href="https://qsl.kn0ble.com" target="_blank" rel="noopener">ADIF Address Extractor</a></p>
+  </footer>
+
+  <script src="/space/satellite.min.js"></script>
+  <script src="/space/app.js"></script>
+</body>
+</html>

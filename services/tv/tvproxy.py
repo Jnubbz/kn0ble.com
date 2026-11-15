@@ -28,6 +28,7 @@ import shutil
 import subprocess
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections import deque
@@ -76,6 +77,7 @@ class Relay:
         self.last_start = 0.0
         self.stderr_tail: deque[str] = deque(maxlen=20)
         self._cfg = (0.0, None)
+        self._etag: str | None = None
 
     # -- config ------------------------------------------------------
     def config(self) -> dict:
@@ -83,9 +85,17 @@ class Relay:
         at, cfg = self._cfg
         if cfg is not None and time.monotonic() - at < CONFIG_TTL:
             return cfg
-        req = urllib.request.Request(CONFIG_URL, headers={"X-TV-Token": TOKEN})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            cfg = json.load(resp)
+        headers = {"X-TV-Token": TOKEN}
+        if cfg is not None and self._etag:
+            headers["If-None-Match"] = self._etag  # big lists: skip if unchanged
+        req = urllib.request.Request(CONFIG_URL, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                cfg = json.load(resp)
+                self._etag = resp.headers.get("ETag")
+        except urllib.error.HTTPError as exc:
+            if exc.code != 304 or cfg is None:
+                raise
         self._cfg = (time.monotonic(), cfg)
         return cfg
 

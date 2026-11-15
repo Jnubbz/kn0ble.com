@@ -38,15 +38,24 @@ class Config:
     channel = None
     channels = []
     token_seen = None
+    requests = 0
+    not_modified = 0
 
 
 class ConfigHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         Config.token_seen = self.headers.get("X-TV-Token")
+        Config.requests += 1
+        etag = '"%d"' % hash(json.dumps([Config.channel, Config.channels], sort_keys=True))
+        if self.headers.get("If-None-Match") == etag:
+            Config.not_modified += 1
+            self.send_response(304); self.send_header("ETag", etag); self.end_headers()
+            return
         body = json.dumps({"channel": Config.channel, "channels": Config.channels,
                            "active": Config.channel and Config.channel["id"],
                            "epg_url": "", "epg_channels": []}).encode()
-        self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
+        self.send_response(200); self.send_header("Content-Type", "application/json")
+        self.send_header("ETag", etag); self.end_headers()
         self.wfile.write(body)
 
     def log_message(self, *a):
@@ -245,3 +254,17 @@ def test_auth_off_switch(env, monkeypatch):
     assert login(env, "", "10.0.0.20")[2]["Location"] == "/stream/"
     monkeypatch.setenv("TV_AUTH", "on")
     assert get(env["base"] + "/tv/live/auth", cookie=False)[0] == 401
+
+
+def test_config_uses_etag(env):
+    Config.channel = {"id": "aa", "name": "A", "url": "http://src.example/a"}
+    Config.channels = [Config.channel]
+    env["tv"].relay._cfg = (0.0, None)
+    env["tv"].relay._etag = None
+    before = Config.not_modified
+    assert env["tv"].relay.config()["channel"]["id"] == "aa"
+    cfg = env["tv"].relay.config()  # TTL 0: asks again, gets 304, keeps data
+    assert Config.not_modified == before + 1 and cfg["channel"]["id"] == "aa"
+    Config.channel = {"id": "bb", "name": "B", "url": "http://src.example/b"}
+    Config.channels = [Config.channel]
+    assert env["tv"].relay.config()["channel"]["id"] == "bb"  # changed: full fetch

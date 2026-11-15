@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Stream</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    main.tv { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    .tv-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 0.75rem; }
+    .tv h1 { font-size: 1.4rem; margin: 0; display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+    .tv h1 span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .live-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+    .live-dot.on { background: #e5484d; box-shadow: 0 0 0 0 rgba(229,72,77,0.6); animation: pulse 2s infinite; }
+    @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(229,72,77,0); } 100% { box-shadow: 0 0 0 0 rgba(229,72,77,0); } }
+    @media (prefers-reduced-motion: reduce) { .live-dot.on { animation: none; } }
+    .player {
+      position: relative; aspect-ratio: 16 / 9; width: 100%;
+      background: #000; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    }
+    .player video { width: 100%; height: 100%; display: block; background: #000; }
+    .overlay {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 0.75rem;
+      padding: 1rem; text-align: center; background: rgba(0,0,0,0.55);
+    }
+    .overlay[hidden] { display: none; }
+    .overlay p { margin: 0; max-width: 34rem; color: var(--ink); }
+    .play-big {
+      font: inherit; font-size: 1.1rem; padding: 0.8rem 1.6rem; border-radius: 999px;
+      border: none; background: var(--accent); color: #fff; cursor: pointer;
+    }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; align-items: center; }
+    .controls button {
+      font: inherit; padding: 0.55rem 1.1rem; border-radius: 8px;
+      border: 1px solid var(--control-border); background: transparent; color: var(--ink); cursor: pointer;
+    }
+    .controls button:hover { border-color: var(--accent); }
+    .status { color: var(--muted); font-size: 0.9rem; margin-left: auto; }
+    .spinner {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.25); border-top-color: #fff; animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Now / Next */
+    .guide { margin-top: 1rem; display: grid; gap: 0.6rem; }
+    .guide[hidden] { display: none; }
+    .guide-item { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 0.9rem; }
+    .guide-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); display: flex; justify-content: space-between; gap: 0.5rem; }
+    .guide-title { font-size: 1.05rem; font-weight: 600; margin: 0.15rem 0 0; }
+    .guide-sub { color: var(--muted); font-size: 0.9rem; margin: 0.1rem 0 0; }
+    .guide-desc { font-size: 0.9rem; margin: 0.35rem 0 0; color: var(--ink); opacity: 0.85; }
+    .guide-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 0.55rem; }
+    .guide-bar span { display: block; height: 100%; background: var(--accent); width: 0; }
+    @media (min-width: 800px) { .guide { grid-template-columns: 1fr 1fr; } }
+
+    /* Channel menu */
+    .menu { margin-top: 1.5rem; }
+    .menu h2 { font-size: 1.1rem; margin: 0 0 0.6rem; }
+    .search {
+      width: 100%; box-sizing: border-box; font: inherit; font-size: 1rem; padding: 0.65rem 0.8rem;
+      border-radius: 8px; border: 1px solid var(--control-border); background: var(--bg); color: var(--ink);
+    }
+    .chips { display: flex; gap: 0.4rem; overflow-x: auto; padding: 0.6rem 0 0.4rem; scrollbar-width: thin; }
+    .chip {
+      font: inherit; font-size: 0.85rem; white-space: nowrap; padding: 0.35rem 0.8rem; border-radius: 999px;
+      border: 1px solid var(--control-border); background: transparent; color: var(--ink); cursor: pointer;
+    }
+    .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .ch-list { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.4rem; }
+    @media (min-width: 700px) { .ch-list { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1000px) { .ch-list { grid-template-columns: 1fr 1fr 1fr; } }
+    .ch {
+      width: 100%; display: flex; align-items: center; gap: 0.75rem; text-align: left;
+      font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.55rem 0.7rem; cursor: pointer; min-height: 56px;
+    }
+    .ch:hover { border-color: var(--control-border); }
+    .ch.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .ch-logo {
+      width: 44px; height: 32px; flex: none; border-radius: 6px; background: #0003; display: flex;
+      align-items: center; justify-content: center; overflow: hidden; font-size: 0.8rem; font-weight: 700; color: var(--muted);
+    }
+    .ch-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .ch-text { min-width: 0; display: flex; flex-direction: column; }
+    .ch-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ch-now { color: var(--muted); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ch-note { color: var(--muted); font-size: 0.85rem; margin: 0.6rem 0 0; }
+    .foot { margin-top: 2rem; font-size: 0.85rem; display: flex; gap: 1.25rem; }
+    .foot a { color: var(--muted); }
+  </style>
+</head>
+<body>
+<main class="tv">
+  <div class="tv-head">
+    <h1><span class="live-dot" id="dot" aria-hidden="true"></span><span id="title">Stream</span></h1>
+  </div>
+
+  <div class="player">
+    <video id="video" controls playsinline preload="none"></video>
+    <div class="overlay" id="overlay"><div class="spinner" aria-hidden="true"></div></div>
+  </div>
+
+  <div class="controls">
+    <button type="button" id="golive">Jump to live</button>
+    <button type="button" id="reload">Reload stream</button>
+    <span class="status" id="status" role="status" aria-live="polite"></span>
+  </div>
+
+  <div class="guide" id="guide" hidden aria-live="polite"></div>
+
+  <section class="menu" aria-labelledby="menu-h">
+    <h2 id="menu-h">Channels</h2>
+    <input type="search" class="search" id="search" placeholder="Search channels" aria-label="Search channels" autocomplete="off">
+    <div class="chips" id="chips" role="group" aria-label="Categories"></div>
+    <ul class="ch-list" id="list"></ul>
+    <p class="ch-note" id="note" hidden></p>
+  </section>
+
+  <p class="foot">
+    <a href="https://qsl.kn0ble.com/admin/tv">Set up TV</a>
+    <a href="/tv">Default channel (/tv)</a>
+    <a href="/tv/live/logout" id="signout" hidden>Sign out</a>
+  </p>
+</main>
+
+<script src="/tv/hls.min.js"></script>
+<script>
+(function () {
+  // Everything plays through the kn0ble-tv relay on Unraid (/tv/live/),
+  // which only serves signed-in devices. One stream at a time: picking a
+  // channel here switches the relay for everyone watching.
+  var LIVE = "/tv/live/";
+  var RENDER_CAP = 300;
+  var video = document.getElementById("video");
+  var overlay = document.getElementById("overlay");
+  var statusEl = document.getElementById("status");
+  var dot = document.getElementById("dot");
+  var titleEl = document.getElementById("title");
+  var listEl = document.getElementById("list");
+  var chipsEl = document.getElementById("chips");
+  var searchEl = document.getElementById("search");
+  var noteEl = document.getElementById("note");
+  var guideEl = document.getElementById("guide");
+
+  var channels = [], byId = {}, current = null, group = "", hls = null, retryTimer = null, netRetries = 0;
+  var guideData = null;
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function signedOut(r) { if (r.status === 401) { location.href = "/stream/login.html"; throw new Error("signed out"); } return r; }
+  function status(msg) { statusEl.textContent = msg || ""; }
+
+  function showOverlay(text, button, onClick) {
+    overlay.hidden = false; overlay.innerHTML = "";
+    if (text) { var p = document.createElement("p"); p.textContent = text; overlay.appendChild(p); }
+    if (button) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "play-big"; b.textContent = button;
+      b.addEventListener("click", onClick || function () { play(current); });
+      overlay.appendChild(b);
+    }
+  }
+  function showSpinner() { overlay.hidden = false; overlay.innerHTML = '<div class="spinner" aria-hidden="true"></div>'; }
+
+  // ---------------- playback
+  function teardown() {
+    clearTimeout(retryTimer);
+    if (hls) { hls.destroy(); hls = null; }
+    video.removeAttribute("src"); video.load();
+    dot.classList.remove("on");
+  }
+  function startVideo() {
+    var p = video.play();
+    if (p && p.catch) p.catch(function () { showOverlay("", "▶ Play", function () { overlay.hidden = true; video.play(); }); });
+  }
+  function fail(msg) { teardown(); status(""); showOverlay(msg, "Try again"); }
+
+  function play(id) {
+    var ch = byId[id];
+    if (!ch) return;
+    current = id; store("tv.last", id);
+    titleEl.textContent = ch.name; document.title = ch.name;
+    markCurrent(); fetchGuide();
+    teardown(); netRetries = 0; showSpinner(); status("Tuning…");
+    var src = LIVE + "ch/" + encodeURIComponent(id) + "/index.m3u8";
+    if (window.Hls && Hls.isSupported()) {
+      hls = new Hls({
+        backBufferLength: 30,
+        manifestLoadPolicy: { default: {
+          maxTimeToFirstByteMs: 30000, maxLoadTimeMs: 30000,
+          timeoutRetry: { maxNumRetry: 1, retryDelayMs: 0, maxRetryDelayMs: 0 },
+          errorRetry: { maxNumRetry: 2, retryDelayMs: 2000, maxRetryDelayMs: 4000 }
+        } }
+      });
+      hls.on(Hls.Events.MANIFEST_PARSED, startVideo);
+      hls.on(Hls.Events.FRAG_LOADED, function () { netRetries = 0; });
+      hls.on(Hls.Events.ERROR, function (_e, d) {
+        if (!d.fatal) return;
+        if (d.response && d.response.code === 401) { location.href = "/stream/login.html"; return; }
+        if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          if (d.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR || d.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT || netRetries >= 5) {
+            fail("This channel didn't start. It may be offline right now.");
+            return;
+          }
+          netRetries++; status("Connection lost, retrying (" + netRetries + ")…");
+          retryTimer = setTimeout(function () { if (hls) hls.startLoad(); }, 2000 * netRetries);
+        } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          status("Recovering…"); hls.recoverMediaError();
+        } else {
+          fail("The stream stopped (" + d.details + ").");
+        }
+      });
+      hls.loadSource(src); hls.attachMedia(video);
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src;
+      video.addEventListener("loadedmetadata", startVideo, { once: true });
+      video.load();
+    } else {
+      fail("This browser can't play these streams.");
+    }
+  }
+
+  video.addEventListener("playing", function () { overlay.hidden = true; dot.classList.add("on"); status("Live"); });
+  video.addEventListener("waiting", function () { status("Buffering…"); });
+  video.addEventListener("pause", function () { dot.classList.remove("on"); status("Paused"); });
+  video.addEventListener("error", function () { if (!hls && video.getAttribute("src")) fail("This channel didn't start. It may be offline right now."); });
+  document.getElementById("reload").addEventListener("click", function () { if (current) play(current); });
+  document.getElementById("golive").addEventListener("click", function () {
+    if (hls && hls.liveSyncPosition != null) video.currentTime = hls.liveSyncPosition;
+    else if (video.seekable.length) video.currentTime = video.seekable.end(video.seekable.length - 1) - 1;
+    startVideo();
+  });
+
+  // ---------------- channel menu
+  function initials(name) {
+    return (name.replace(/^[A-Z]{2,3}:\s*/, "").match(/[A-Za-z0-9]/g) || ["?"]).slice(0, 3).join("").toUpperCase();
+  }
+  function renderChips() {
+    var groups = [], seen = {};
+    channels.forEach(function (c) { if (c.group && !seen[c.group]) { seen[c.group] = 1; groups.push(c.group); } });
+    chipsEl.innerHTML = "";
+    chipsEl.hidden = groups.length < 2;
+    [""].concat(groups).forEach(function (g) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip" + (g === group ? " on" : ""); b.textContent = g || "All";
+      b.setAttribute("aria-pressed", g === group ? "true" : "false");
+      b.addEventListener("click", function () { group = g; store("tv.group", g); renderChips(); renderList(); });
+      chipsEl.appendChild(b);
+    });
+  }
+  function renderList() {
+    var q = searchEl.value.trim().toLowerCase();
+    var hits = channels.filter(function (c) {
+      return (!group || c.group === group) &&
+        (!q || c.name.toLowerCase().indexOf(q) !== -1 || (c.now || "").toLowerCase().indexOf(q) !== -1);
+    });
+    listEl.innerHTML = "";
+    hits.slice(0, RENDER_CAP).forEach(function (c) {
+      var li = document.createElement("li");
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "ch" + (c.id === current ? " on" : ""); b.dataset.id = c.id;
+      if (c.id === current) b.setAttribute("aria-current", "true");
+      var logo = document.createElement("span"); logo.className = "ch-logo";
+      // Initials until (unless) the logo loads.
+      logo.textContent = initials(c.name);
+      if (c.logo) {
+        var img = document.createElement("img"); img.loading = "lazy"; img.alt = "";
+        img.referrerPolicy = "no-referrer"; img.hidden = true;
+        img.onload = function () { logo.firstChild.nodeValue = ""; img.hidden = false; };
+        img.onerror = function () { img.remove(); };
+        img.src = c.logo;
+        logo.appendChild(img);
+      }
+      var text = document.createElement("span"); text.className = "ch-text";
+      var n = document.createElement("span"); n.className = "ch-name"; n.textContent = c.name;
+      text.appendChild(n);
+      if (c.now) { var now = document.createElement("span"); now.className = "ch-now"; now.textContent = c.now; text.appendChild(now); }
+      b.appendChild(logo); b.appendChild(text);
+      b.addEventListener("click", function () {
+        play(c.id);
+        document.querySelector(".player").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      li.appendChild(b); listEl.appendChild(li);
+    });
+    noteEl.hidden = false;
+    noteEl.textContent = !channels.length ? "No channels yet. Add some at Set up TV."
+      : !hits.length ? "No channels match."
+      : hits.length > RENDER_CAP ? "Showing " + RENDER_CAP + " of " + hits.length + ". Search or pick a category to narrow it down."
+      : "";
+    noteEl.hidden = !noteEl.textContent;
+  }
+  function markCurrent() {
+    listEl.querySelectorAll(".ch").forEach(function (b) {
+      var on = b.dataset.id === current;
+      b.classList.toggle("on", on);
+      if (on) b.setAttribute("aria-current", "true"); else b.removeAttribute("aria-current");
+    });
+  }
+  searchEl.addEventListener("input", renderList);
+
+  function loadChannels(first) {
+    return fetch(LIVE + "channels.json", { cache: "no-store" }).then(signedOut)
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) {
+        channels = d.channels || []; byId = {};
+        channels.forEach(function (c) { byId[c.id] = c; });
+        if (group && !channels.some(function (c) { return c.group === group; })) group = "";
+        document.getElementById("signout").hidden = !d.locked;
+        renderChips(); renderList();
+        // The guide is still downloading: fill in "what's on" shortly.
+        if (d.guide_loading) setTimeout(function () { loadChannels(false); }, 6000);
+        if (first) {
+          var last = store("tv.last");
+          var pick = byId[last] ? last : d.active;
+          if (pick) {
+            current = pick; titleEl.textContent = byId[pick].name; document.title = byId[pick].name;
+            markCurrent(); fetchGuide();
+            showOverlay("", "▶ Watch");
+          } else {
+            showOverlay("No channels yet. Add some at Set up TV.");
+          }
+        }
+      })
+      .catch(function (e) {
+        if (first && e.message !== "signed out") showOverlay("Can't load the channel list right now.", "Try again", function () { loadChannels(true); });
+      });
+  }
+
+  // ---------------- Now / Next
+  function hm(sec) { return new Date(sec * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
+  function guideItem(label, p, isNow) {
+    var d = document.createElement("div"); d.className = "guide-item";
+    var l = document.createElement("div"); l.className = "guide-label";
+    var a = document.createElement("span"); a.textContent = label;
+    var b = document.createElement("span"); b.textContent = hm(p.start) + " – " + hm(p.stop);
+    l.appendChild(a); l.appendChild(b); d.appendChild(l);
+    var t = document.createElement("p"); t.className = "guide-title"; t.textContent = p.title; d.appendChild(t);
+    if (p.subtitle) { var s = document.createElement("p"); s.className = "guide-sub"; s.textContent = p.subtitle; d.appendChild(s); }
+    if (isNow && p.desc) { var ds = document.createElement("p"); ds.className = "guide-desc"; ds.textContent = p.desc; d.appendChild(ds); }
+    if (isNow) {
+      var bar = document.createElement("div"); bar.className = "guide-bar";
+      var fill = document.createElement("span"); fill.id = "guide-fill"; bar.appendChild(fill); d.appendChild(bar);
+    }
+    return d;
+  }
+  function tickGuide() {
+    var cur = guideData && guideData.now, fill = document.getElementById("guide-fill"), now = Date.now() / 1000;
+    if (cur && fill) fill.style.width = Math.max(0, Math.min(100, 100 * (now - cur.start) / (cur.stop - cur.start))) + "%";
+    if ((cur && now >= cur.stop) || (!cur && guideData && guideData.next && now >= guideData.next.start)) fetchGuide();
+  }
+  function renderGuide(d) {
+    guideData = d && d.status === "ok" ? d : null;
+    guideEl.innerHTML = "";
+    if (!guideData) { guideEl.hidden = true; return; }
+    if (d.now) guideEl.appendChild(guideItem("Now", d.now, true));
+    if (d.next) guideEl.appendChild(guideItem("Next", d.next, false));
+    guideEl.hidden = false; tickGuide();
+  }
+  var guideFor = null;
+  function fetchGuide() {
+    if (!current) return;
+    var want = current; guideFor = want;
+    fetch(LIVE + "guide.json?ch=" + encodeURIComponent(want), { cache: "no-store" }).then(signedOut)
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (guideFor !== want) return;  // switched channel meanwhile
+        renderGuide(d);
+        if (d && d.status === "loading") setTimeout(function () { if (guideFor === want) fetchGuide(); }, 5000);
+      })
+      .catch(function () { renderGuide(null); });
+  }
+
+  setInterval(function () { if (!document.hidden) tickGuide(); }, 15000);
+  setInterval(function () { if (!document.hidden) { loadChannels(false); fetchGuide(); } }, 5 * 60000);
+
+  group = store("tv.group") || "";
+  loadChannels(true);
+})();
+</script>
+</body>
+</html>

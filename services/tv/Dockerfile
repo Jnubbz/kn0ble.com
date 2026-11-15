@@ -11,7 +11,7 @@ RUN apt-get update \
     && useradd --system --uid 10002 --no-create-home tv
 
 WORKDIR /app
-COPY tvproxy.py .
+COPY tvproxy.py guide.py auth.py ./
 
 USER tv
 EXPOSE 8000

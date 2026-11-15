@@ -28,10 +28,14 @@ import shutil
 import subprocess
 import threading
 import time
+import urllib.parse
 import urllib.request
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+import auth
+from guide import Guide
 
 CONFIG_URL = os.environ.get("TV_CONFIG_URL", "http://qsl-tracker:8000/tv-config-internal.json")
 TOKEN = os.environ.get("TV_PROXY_TOKEN", "")
@@ -46,6 +50,17 @@ PORT = int(os.environ.get("PORT", "8000"))
 
 PREFIX = "/tv/live/"
 SEG_RE = re.compile(r"^g(\d{1,9})/seg(\d{1,9})\.ts$")
+CH_RE = re.compile(r"^ch/([0-9a-f]{1,32})/index\.m3u8$")
+COOKIE_SECURE = os.environ.get("TV_COOKIE_SECURE", "1") != "0"
+
+# Entries that are movies/series files rather than live channels. Hidden
+# from the channel menu (movies come in a later version).
+_VOD_URL = re.compile(r"/(movie|movies|series|vod)/|\.(mp4|mkv|avi|mov|m4v|wmv|flv)(\?|$)", re.I)
+_VOD_GROUP = re.compile(r"\b(vod|movies?|films?|series|tv shows?)\b", re.I)
+
+
+def is_vod(ch: dict) -> bool:
+    return bool(_VOD_URL.search(ch.get("url") or "") or _VOD_GROUP.search(ch.get("group") or ""))
 
 log = logging.getLogger("tvproxy")
 
@@ -63,16 +78,20 @@ class Relay:
         self._cfg = (0.0, None)
 
     # -- config ------------------------------------------------------
-    def channel(self) -> dict | None:
-        """The active channel {id, name, url} or None; cached briefly."""
-        at, ch = self._cfg
-        if time.monotonic() - at < CONFIG_TTL:
-            return ch
+    def config(self) -> dict:
+        """qsl-tracker's internal config, cached briefly."""
+        at, cfg = self._cfg
+        if cfg is not None and time.monotonic() - at < CONFIG_TTL:
+            return cfg
         req = urllib.request.Request(CONFIG_URL, headers={"X-TV-Token": TOKEN})
         with urllib.request.urlopen(req, timeout=5) as resp:
-            ch = json.load(resp).get("channel")
-        self._cfg = (time.monotonic(), ch)
-        return ch
+            cfg = json.load(resp)
+        self._cfg = (time.monotonic(), cfg)
+        return cfg
+
+    def channel(self) -> dict | None:
+        """The active channel {id, name, url, epg_id} or None."""
+        return self.config().get("channel")
 
     # -- ffmpeg ------------------------------------------------------
     def _cmd(self, url: str, out: Path) -> list[str]:
@@ -89,7 +108,8 @@ class Relay:
         cmd += ["-c:a", "aac", "-b:a", "128k", "-ac", "2",
                 "-f", "hls", "-hls_time", "4", "-hls_list_size", "6",
                 "-hls_flags", "delete_segments+omit_endlist+temp_file+independent_segments",
-                "-hls_base_url", f"g{self.gen}/",
+                # Absolute: playlists are served at more than one path.
+                "-hls_base_url", f"{PREFIX}g{self.gen}/",
                 "-hls_segment_filename", str(out / "seg%05d.ts"),
                 str(out / "index.m3u8")]
         return cmd
@@ -141,17 +161,24 @@ class Relay:
             self.last_start = time.monotonic()
             log.info("started relay g%d", self.gen)
 
-    def playlist(self) -> tuple[int, bytes, str]:
-        """(status, body, content type) for /tv/live/index.m3u8."""
+    def playlist(self, channel_id: str | None = None) -> tuple[int, bytes, str]:
+        """(status, body, content type) for /tv/live/index.m3u8 (the
+        default channel) or /tv/live/ch/<id>/index.m3u8 (a picked one).
+        One stream at a time: picking another channel switches the relay."""
         self.last_access = time.monotonic()
         try:
-            ch = self.channel()
+            cfg = self.config()
         except Exception as exc:  # qsl-tracker down or token wrong
             log.error("config fetch failed: %s", exc)
             return 503, b"channel setting unavailable\n", "text/plain"
+        if channel_id is None:
+            ch = cfg.get("channel")
+        else:
+            ch = next((c for c in cfg.get("channels") or [] if c.get("id") == channel_id), None)
         if not ch or not ch.get("url"):
-            self.stop("nothing on TV")
-            return 404, b"nothing on TV\n", "text/plain"
+            if channel_id is None:
+                self.stop("nothing on TV")
+            return 404, b"no such channel\n" if channel_id else b"nothing on TV\n", "text/plain"
         self.ensure(ch["url"])
         deadline = time.monotonic() + START_WAIT
         while time.monotonic() < deadline:
@@ -185,14 +212,57 @@ class Relay:
 
 
 relay = Relay()
+guide = Guide()
+
+
+def guide_json(channel_id: str | None) -> tuple[int, bytes]:
+    try:
+        cfg = relay.config()
+    except Exception as exc:
+        log.error("config fetch failed: %s", exc)
+        return 503, b'{"status": "unavailable"}'
+    guide.maybe_refresh(cfg.get("epg_url") or "", cfg.get("epg_channels") or [])
+    ch = cfg.get("channel")
+    if channel_id:
+        ch = next((c for c in cfg.get("channels") or [] if c.get("id") == channel_id), None)
+    return 200, json.dumps(guide.lookup(ch)).encode()
+
+
+def channels_json() -> tuple[int, bytes]:
+    """The channel menu: live channels only, no URLs."""
+    try:
+        cfg = relay.config()
+    except Exception as exc:
+        log.error("config fetch failed: %s", exc)
+        return 503, b'{"error": "unavailable"}'
+    guide.maybe_refresh(cfg.get("epg_url") or "", cfg.get("epg_channels") or [])
+    out = []
+    for c in cfg.get("channels") or []:
+        if is_vod(c):
+            continue
+        logo = c.get("logo") or ""
+        out.append({
+            "id": c.get("id"), "name": c.get("name") or "", "group": c.get("group") or "",
+            # http logos would be blocked on the https page anyway.
+            "logo": logo if logo.startswith("https://") else "",
+            "now": guide.now_title(c),
+        })
+    active = cfg.get("active")
+    if active not in {c["id"] for c in out}:
+        active = out[0]["id"] if out else None
+    return 200, json.dumps({"active": active, "channels": out, "guide_loading": guide.is_loading(),
+                       "locked": not auth.disabled()}).encode()
 
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "kn0ble-tv"
     sys_version = ""
 
-    def _send(self, status: int, body: bytes, ctype: str, cache: str = "no-store") -> None:
+    def _send(self, status: int, body: bytes, ctype: str, cache: str = "no-store",
+              headers: dict | None = None) -> None:
         self.send_response(status)
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", cache)
@@ -207,8 +277,35 @@ class Handler(BaseHTTPRequestHandler):
         if not path.startswith(PREFIX):
             return self._send(404, b"not found\n", "text/plain")
         rel = path[len(PREFIX):]
+        if rel == "auth":  # nginx auth_request for the /tv page
+            if auth.cookie_ok(self.headers.get("Cookie")):
+                return self._send(204, b"", "text/plain")
+            return self._send(401, b"", "text/plain")
+        if rel == "logout":
+            return self._send(303, b"", "text/plain", headers={
+                "Location": "/stream/login.html", "Set-Cookie": auth.clear_cookie_header(COOKIE_SECURE)})
+        query = self.path.split("?", 1)[1] if "?" in self.path else ""
+        # Two pages share this relay. kn0ble.com/tv plays only the default
+        # channel and stays open: index.m3u8, its segments, and guide.json
+        # without ?ch=. kn0ble.com/stream (the menu: channel list, picking
+        # any channel, its guide) needs the sign-in cookie, unless
+        # TV_AUTH=off.
+        picks = rel == "channels.json" or CH_RE.match(rel) or (rel == "guide.json" and "ch=" in query)
+        if picks and not auth.cookie_ok(self.headers.get("Cookie")):
+            return self._send(401, b"sign in at /stream/login.html\n", "text/plain")
+        if rel == "channels.json":
+            status, body = channels_json()
+            return self._send(status, body, "application/json")
+        if rel == "guide.json":
+            m = re.search(r"(?:^|&)ch=([0-9a-f]{1,32})(?:&|$)", query)
+            status, body = guide_json(m.group(1) if m else None)
+            return self._send(status, body, "application/json")
         if rel == "index.m3u8":
             status, body, ctype = relay.playlist()
+            return self._send(status, body, ctype)
+        m = CH_RE.match(rel)
+        if m:
+            status, body, ctype = relay.playlist(m.group(1))
             return self._send(status, body, ctype)
         p = relay.segment(rel)
         if p is None:
@@ -221,6 +318,29 @@ class Handler(BaseHTTPRequestHandler):
 
     do_HEAD = do_GET
 
+    def do_POST(self):  # noqa: N802
+        path = self.path.split("?", 1)[0]
+        if path != PREFIX + "login":
+            return self._send(404, b"not found\n", "text/plain")
+        ip = (self.headers.get("CF-Connecting-IP") or self.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+              or self.client_address[0])
+        length = min(int(self.headers.get("Content-Length") or 0), 4096)
+        form = urllib.parse.parse_qs(self.rfile.read(length).decode("utf-8", "replace"))
+        given = (form.get("password") or [""])[0]
+        if auth.disabled():
+            return self._send(303, b"", "text/plain", headers={"Location": "/stream/"})
+        if not auth.password():
+            return self._send(303, b"", "text/plain", headers={"Location": "/stream/login.html?unset=1"})
+        if auth.blocked(ip):
+            return self._send(303, b"", "text/plain", headers={"Location": "/stream/login.html?wait=1"})
+        if not auth.check_password(given):
+            auth.note_failure(ip)
+            log.warning("wrong TV password from %s", ip)
+            time.sleep(1)
+            return self._send(303, b"", "text/plain", headers={"Location": "/stream/login.html?bad=1"})
+        return self._send(303, b"", "text/plain", headers={
+            "Location": "/stream/", "Set-Cookie": auth.set_cookie_header(COOKIE_SECURE)})
+
     def log_message(self, fmt, *args):
         if "/healthz" not in self.path:
             log.info("%s %s", self.address_string(), fmt % args)
@@ -228,6 +348,10 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if auth.disabled():
+        log.warning("TV_AUTH=off: /stream is open to anyone who has the link")
+    elif not auth.password():
+        log.warning("TV_PASSWORD is not set; /stream stays locked until it is")
     if not TOKEN:
         log.warning("TV_PROXY_TOKEN is not set; qsl-tracker will refuse the config request")
     shutil.rmtree(HLS_ROOT, ignore_errors=True)

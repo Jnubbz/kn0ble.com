@@ -36,13 +36,16 @@ while True: time.sleep(1)
 
 class Config:
     channel = None
+    channels = []
     token_seen = None
 
 
 class ConfigHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         Config.token_seen = self.headers.get("X-TV-Token")
-        body = json.dumps({"channel": Config.channel}).encode()
+        body = json.dumps({"channel": Config.channel, "channels": Config.channels,
+                           "active": Config.channel and Config.channel["id"],
+                           "epg_url": "", "epg_channels": []}).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
         self.wfile.write(body)
 
@@ -65,7 +68,8 @@ def env(tmp_path_factory):
     os.environ.update(
         TV_CONFIG_URL=f"http://127.0.0.1:{cfg_port}/", TV_PROXY_TOKEN="tok",
         TV_HLS_DIR=str(tmp / "hls"), TV_FFMPEG=str(fake), TV_CONFIG_TTL="0",
-        TV_IDLE_SECONDS="2", TV_START_WAIT="5", PORT=str(port))
+        TV_IDLE_SECONDS="2", TV_START_WAIT="5", PORT=str(port),
+        TV_PASSWORD="hunter2", TV_COOKIE_SECURE="0")
     import tvproxy
     tvproxy.HLS_ROOT.mkdir(parents=True, exist_ok=True)
     srv = ThreadingHTTPServer(("127.0.0.1", port), tvproxy.Handler)
@@ -76,9 +80,20 @@ def env(tmp_path_factory):
     srv.shutdown(); cfg.shutdown()
 
 
-def get(url):
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None
+
+
+def get(url, cookie=True, data=None, headers=None):
+    import auth
+    h = dict(headers or {})
+    if cookie:
+        h["Cookie"] = "tvauth=" + auth.make_cookie()
+    req = urllib.request.Request(url, data=data, headers=h)
+    opener = urllib.request.build_opener(NoRedirect)
     try:
-        with urllib.request.urlopen(url, timeout=10) as r:
+        with opener.open(req, timeout=10) as r:
             return r.status, r.read(), r.headers
     except urllib.error.HTTPError as e:
         return e.code, e.read(), e.headers
@@ -99,7 +114,7 @@ def test_plays_active_channel_and_serves_segment(env):
     assert headers["Cache-Control"] == "no-store"
     assert b"PASS" not in body
     seg = [l for l in body.decode().splitlines() if l.endswith(".ts")][0]
-    status, data, headers = get(env["base"] + "/tv/live/" + seg)
+    status, data, headers = get(env["base"] + seg)
     assert status == 200 and data.startswith(b"\x47") and headers["Content-Type"] == "video/mp2t"
 
 
@@ -139,3 +154,94 @@ def test_dead_source_reports_error(env):
 
 def test_healthz(env):
     assert get(env["base"] + "/healthz")[0] == 200
+
+
+def test_locked_without_cookie(env):
+    Config.channel = {"id": "aa", "name": "A", "url": "http://src.example/a"}
+    Config.channels = [Config.channel]
+    # The /stream menu needs the cookie ...
+    for path in ("/tv/live/channels.json", "/tv/live/ch/aa/index.m3u8", "/tv/live/guide.json?ch=aa"):
+        assert get(env["base"] + path, cookie=False)[0] == 401, path
+    # ... the /tv default channel never does.
+    status, body, _ = get(env["base"] + "/tv/live/index.m3u8", cookie=False)
+    assert status == 200
+    seg = [l for l in body.decode().splitlines() if l.endswith(".ts")][0]
+    assert get(env["base"] + seg, cookie=False)[0] == 200
+    assert get(env["base"] + "/tv/live/guide.json", cookie=False)[0] == 200
+    assert get(env["base"] + "/tv/live/auth", cookie=False)[0] == 401
+    assert get(env["base"] + "/tv/live/auth")[0] == 204
+    assert get(env["base"] + "/tv/live/auth", cookie=False, headers={"Cookie": "tvauth=9999999999.forged"})[0] == 401
+    assert get(env["base"] + "/tv/live/healthz", cookie=False)[0] == 200
+
+
+def login(env, pw, ip):
+    return get(env["base"] + "/tv/live/login", cookie=False, data=f"password={pw}".encode(),
+               headers={"CF-Connecting-IP": ip, "Content-Type": "application/x-www-form-urlencoded"})
+
+
+def test_login_flow_and_rate_limit(env):
+    status, _, h = login(env, "hunter2", "10.0.0.1")
+    assert status == 303 and h["Location"] == "/stream/"
+    cookie = h["Set-Cookie"]
+    assert "HttpOnly" in cookie and "Path=/;" in cookie and "Max-Age=31536000" in cookie
+    value = cookie.split(";")[0]
+    assert get(env["base"] + "/tv/live/auth", cookie=False, headers={"Cookie": value})[0] == 204
+    status, _, h = login(env, "wrong", "10.0.0.2")
+    assert h["Location"] == "/stream/login.html?bad=1"
+    for _ in range(5):
+        login(env, "wrong", "10.0.0.3")
+    # Locked out even with the right password now; other IPs unaffected.
+    assert login(env, "hunter2", "10.0.0.3")[2]["Location"] == "/stream/login.html?wait=1"
+    assert login(env, "hunter2", "10.0.0.4")[2]["Location"] == "/stream/"
+    status, _, h = get(env["base"] + "/tv/live/logout")
+    assert h["Location"] == "/stream/login.html" and "Max-Age=0" in h["Set-Cookie"]
+
+
+def test_no_password_means_locked(env, monkeypatch):
+    monkeypatch.setenv("TV_PASSWORD", "")
+    assert get(env["base"] + "/tv/live/auth")[0] == 401
+    assert login(env, "", "10.0.0.9")[2]["Location"] == "/stream/login.html?unset=1"
+
+
+def test_channel_menu_hides_vod_and_urls(env):
+    Config.channel = None
+    Config.channels = [
+        {"id": "aa", "name": "News", "group": "US News", "logo": "https://l/n.png", "url": "http://src/U/P/1", "epg_id": ""},
+        {"id": "bb", "name": "Weather", "group": "", "logo": "http://l/w.png", "url": "http://src/U/P/2", "epg_id": ""},
+        {"id": "cc", "name": "A Movie", "group": "Movies", "url": "http://src/movie/U/P/3.mkv", "epg_id": ""},
+        {"id": "dd", "name": "Ep 1", "group": "Shows", "url": "http://src/series/U/P/4.mp4", "epg_id": ""},
+    ]
+    status, body, _ = get(env["base"] + "/tv/live/channels.json")
+    data = json.loads(body)
+    assert status == 200 and [c["id"] for c in data["channels"]] == ["aa", "bb"]
+    assert data["active"] == "aa"
+    assert data["locked"] is True
+    assert data["channels"][1]["logo"] == ""  # http logo dropped
+    assert b"src/" not in body and b"U/P" not in body
+
+
+def test_pick_channel_switches_relay(env):
+    Config.channels = [
+        {"id": "aa", "name": "News", "url": "http://src.example/ch/aa"},
+        {"id": "bb", "name": "Weather", "url": "http://src.example/ch/bb"},
+    ]
+    assert get(env["base"] + "/tv/live/ch/aa/index.m3u8")[0] == 200
+    assert env["log"].read_text().splitlines()[-1] == "http://src.example/ch/aa"
+    status, body, _ = get(env["base"] + "/tv/live/ch/bb/index.m3u8")
+    assert status == 200
+    # Segment links are absolute, so they resolve from /ch/<id>/ too.
+    seg = [l for l in body.decode().splitlines() if l.endswith(".ts")][0]
+    assert seg.startswith("/tv/live/g")
+    assert get(env["base"] + seg)[0] == 200
+    assert env["log"].read_text().splitlines()[-1] == "http://src.example/ch/bb"
+    assert get(env["base"] + "/tv/live/ch/ff/index.m3u8")[0] == 404
+    assert get(env["base"] + "/tv/live/ch/../index.m3u8")[0] in (401, 404)
+
+
+def test_auth_off_switch(env, monkeypatch):
+    monkeypatch.setenv("TV_AUTH", "off")
+    assert get(env["base"] + "/tv/live/auth", cookie=False)[0] == 204
+    assert get(env["base"] + "/tv/live/channels.json", cookie=False)[0] == 200
+    assert login(env, "", "10.0.0.20")[2]["Location"] == "/stream/"
+    monkeypatch.setenv("TV_AUTH", "on")
+    assert get(env["base"] + "/tv/live/auth", cookie=False)[0] == 401

@@ -18,6 +18,7 @@ COPY css/ /usr/share/nginx/html/css/
 COPY images/ /usr/share/nginx/html/images/
 COPY oot/ /usr/share/nginx/html/oot/
 COPY tv/ /usr/share/nginx/html/tv/
+COPY stream/ /usr/share/nginx/html/stream/
 COPY space/ /usr/share/nginx/html/space/
 
 # curl is in this base image; the healthcheck uses it.

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Stream</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    main.tv-login { max-width: 380px; margin: 0 auto; padding: 3rem 1rem; }
+    .tv-login h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+    .tv-login form { display: grid; gap: 0.75rem; }
+    .tv-login label { color: var(--muted); font-size: 0.9rem; }
+    .tv-login input {
+      font: inherit; font-size: 1rem; padding: 0.7rem 0.8rem; border-radius: 8px;
+      border: 1px solid var(--control-border); background: var(--bg); color: var(--ink);
+    }
+    .tv-login input:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+    .tv-login button {
+      font: inherit; font-size: 1rem; padding: 0.75rem; border-radius: 8px; border: none;
+      background: var(--accent); color: #fff; cursor: pointer;
+    }
+    .tv-login button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+    .tv-login .msg { margin: 0 0 1rem; padding: 0.6rem 0.8rem; border-radius: 8px; background: rgba(229,83,75,0.18); color: #ff8a82; }
+    .tv-login .msg[hidden] { display: none; }
+  </style>
+</head>
+<body>
+<main class="tv-login">
+  <h1>Stream</h1>
+  <p class="msg" id="msg" hidden></p>
+  <form method="post" action="/tv/live/login">
+    <label for="pw">Password</label>
+    <input id="pw" type="password" name="password" autocomplete="current-password" required autofocus>
+    <button type="submit">Sign in</button>
+  </form>
+</main>
+<script>
+  (function () {
+    var q = location.search, msg = document.getElementById("msg");
+    var text = /bad=1/.test(q) ? "That password isn't right."
+      : /wait=1/.test(q) ? "Too many tries. Wait 15 minutes and try again."
+      : /unset=1/.test(q) ? "No password is set up on the server yet (TV_PASSWORD)."
+      : "";
+    if (text) { msg.textContent = text; msg.hidden = false; }
+  })();
+</script>
+</body>
+</html>

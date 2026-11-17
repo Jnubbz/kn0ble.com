@@ -917,7 +917,7 @@
   }
 
   // Exposed for tests.
-  window.KN0BLE_SPACE = { amsatFor, parseUtc, gridToLatLon, latLonToGrid, parseTle, findPasses, makeObserver, look, rxFreq, txFreq, sunlit, state, computeAll, buildIcs, refresh: () => { computeAll(); renderAll(); } };
+  window.KN0BLE_SPACE = { CURATED, amsatFor, parseUtc, gridToLatLon, latLonToGrid, parseTle, findPasses, makeObserver, look, rxFreq, txFreq, sunlit, state, computeAll, buildIcs, refresh: () => { computeAll(); renderAll(); } };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

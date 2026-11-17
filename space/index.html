@@ -93,6 +93,26 @@
     .livebox { background: #14301f; border: 1px solid var(--accent); border-radius: 6px; padding: .5rem .7rem; margin: 0 0 .6rem; }
     details.livetx { margin-top: .6rem; }
     details.livetx summary { cursor: pointer; color: var(--link); font-size: .88rem; }
+    #ft5d > summary { cursor: pointer; list-style: none; }
+    #ft5d > summary::-webkit-details-marker { display: none; }
+    #ft5d > summary::before { content: '\25B8  '; color: var(--muted); }
+    #ft5d[open] > summary::before { content: '\25BE  '; }
+    .ft5d-h { font-size: 1rem; margin: 1.25rem 0 .4rem; }
+    ol.steps { margin: .2rem 0 .4rem 1.2rem; padding: 0; }
+    ol.steps li { margin-bottom: .25rem; }
+    .dropzone { display: block; border: 2px dashed var(--control-border); border-radius: 8px; padding: 1rem; text-align: center; cursor: pointer; color: var(--muted); }
+    .dropzone.over { border-color: var(--accent); color: var(--ink); }
+    .dropzone input { display: block; margin: 0 auto .5rem; color: var(--muted); }
+    .birds { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .35rem .9rem; margin: .4rem 0 .8rem; }
+    .bird { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+    .bird input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
+    .ft5d-cfg input { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--control-border); border-radius: 6px; padding: .4rem .5rem; width: 6.5rem; }
+    .ft5d-btns { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .8rem; }
+    .ft5d-msg { min-height: 1.2em; font-size: .9rem; }
+    .ft5d-msg.ok { color: #9be7c4; }
+    .ft5d-msg.warn, .warnbox { color: #f0b85a; }
+    .warnbox { border: 1px solid #6b5322; border-radius: 6px; padding: .2rem .7rem; margin: .5rem 0; font-size: .9rem; }
+    .ft5d-quick { font-size: .88rem; }
     .howto { font-size: .9rem; color: var(--muted); }
     .howto li { margin-bottom: .3rem; }
 
@@ -188,6 +208,53 @@
 
     <section id="passes" aria-label="Upcoming passes"></section>
 
+    <details class="card" id="ft5d">
+      <summary><h2 style="display:inline">Load satellite channels into an FT5DR</h2> <span class="muted small">(optional)</span></summary>
+      <p class="space-intro">Puts Doppler-stepped receive channels for the birds you pick into a block of channels the radio does not otherwise use, all in one bank. Your own channels are never touched, and every file is checked before you get it. Runs in this browser; the file is not uploaded.</p>
+
+      <h3 class="ft5d-h">1. On the radio: save the channels to the card</h3>
+      <ol class="small steps">
+        <li>Hold <strong>F menu</strong>, touch <strong>SD CARD</strong>, touch <strong>2 MEMORY CH</strong>.</li>
+        <li>Turn the <strong>dial</strong> to <strong>Write to SD</strong> (touch does not work on this screen).</li>
+        <li>Press <strong>F menu</strong> once, then touch <strong>OK</strong> twice. Wait for the beep.</li>
+      </ol>
+
+      <h3 class="ft5d-h">2. Drop the file here</h3>
+      <label id="ft5d-drop" class="dropzone" for="ft5d-input">
+        <input type="file" id="ft5d-input" accept=".dat,application/octet-stream">
+        <span>Drag <strong>MEMORY.dat</strong> here (card folder <strong>FT5D_MEMORY-CH</strong>), or click to pick it.</span>
+      </label>
+      <div id="ft5d-file" class="small"></div>
+
+      <h3 class="ft5d-h">3. Pick birds and where they go</h3>
+      <div class="ft5d-quick"><button type="button" class="linkbtn" id="ft5d-all">All FM birds</button> &middot; <button type="button" class="linkbtn" id="ft5d-heard">Only ones AMSAT heard in the last 48 h</button></div>
+      <div id="ft5d-birds" class="birds"></div>
+      <div class="controls ft5d-cfg">
+        <label for="ft5d-start">First channel <input type="number" id="ft5d-start" min="1" max="900"></label>
+        <label for="ft5d-size">Reserved block size <input type="number" id="ft5d-size" min="1" max="900"></label>
+        <label for="ft5d-bank">Bank <input type="number" id="ft5d-bank" min="1" max="24"></label>
+      </div>
+      <div id="ft5d-plan"></div>
+      <div class="btns ft5d-btns">
+        <button type="button" class="sbtn" id="ft5d-build" disabled>Make new MEMORY.dat</button>
+        <button type="button" class="sbtn ghost" id="ft5d-clear" disabled>Remove satellite channels</button>
+      </div>
+      <p class="ft5d-msg" id="ft5d-msg" role="status" aria-live="polite"></p>
+
+      <h3 class="ft5d-h">4. On the radio: load it</h3>
+      <ol class="small steps">
+        <li>Copy the new <strong>MEMORY.dat</strong> into <strong>FT5D_MEMORY-CH</strong> on the card, replacing the old one. Put the card back in the radio.</li>
+        <li>Hold <strong>F menu</strong>, touch <strong>SD CARD</strong>, touch <strong>2 MEMORY CH</strong>.</li>
+        <li>Turn the <strong>dial</strong> to <strong>Read from SD</strong>, press <strong>F menu</strong>, touch <strong>OK</strong> twice. Wait for the beep.</li>
+        <li>In the field, step through <em>+10, +5, mid, -5, -10</em> as the bird rises, passes overhead and sets.</li>
+      </ol>
+      <p class="small muted">Done with satellites? Do steps 1-4 again with <strong>Remove satellite channels</strong>. Your full-radio BACKUP.dat (SD CARD &rarr; 1 BACKUP) is the undo button for everything.</p>
+
+      <h3 class="ft5d-h">Transmit radio (enter these once by hand)</h3>
+      <p class="small muted">The uplink radio only needs these. 2 m uplinks don't need Doppler steps on FM; 70 cm uplinks do (transmit low at rise, high at set).</p>
+      <div id="ft5d-alinco"></div>
+    </details>
+
     <div class="card howto">
       <h2>Reading this</h2>
       <ul>
@@ -206,5 +273,6 @@
 
   <script src="/space/satellite.min.js"></script>
   <script src="/space/app.js"></script>
+  <script src="/space/ft5d.js"></script>
 </body>
 </html>

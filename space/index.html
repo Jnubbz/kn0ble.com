@@ -250,9 +250,16 @@
       </ol>
       <p class="small muted">Done with satellites? Do steps 1-4 again with <strong>Remove satellite channels</strong>. Your full-radio BACKUP.dat (SD CARD &rarr; 1 BACKUP) is the undo button for everything.</p>
 
-      <h3 class="ft5d-h">Transmit radio (enter these once by hand)</h3>
-      <p class="small muted">The uplink radio only needs these. 2 m uplinks don't need Doppler steps on FM; 70 cm uplinks do (transmit low at rise, high at set).</p>
+      <h3 class="ft5d-h">Transmit radio</h3>
+      <p class="small muted">The uplink radio only needs these. 2 m uplinks don't need Doppler steps on FM; 70 cm uplinks do (transmit low at rise, high at set). Import the CSV into an empty block of channels, or type them in.</p>
+      <div class="controls ft5d-cfg"><label for="ft5d-txstart">First channel on the transmit radio <input type="number" id="ft5d-txstart" min="1" max="999"></label></div>
       <div id="ft5d-alinco"></div>
+      <div class="btns ft5d-btns">
+        <button type="button" class="sbtn ghost" id="csv-alinco">Alinco DJ-W70 CSV (RT Systems)</button>
+        <button type="button" class="sbtn ghost" id="csv-chirp-up">CHIRP CSV: uplinks</button>
+        <button type="button" class="sbtn ghost" id="csv-chirp-down">CHIRP CSV: downlinks (Doppler steps)</button>
+      </div>
+      <p class="small muted" id="csv-msg" role="status" aria-live="polite">RT Systems: File &rarr; Import. CHIRP: File &rarr; Import, then pick where the channels land.</p>
     </details>
 
     <div class="card howto">

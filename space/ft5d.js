@@ -232,6 +232,61 @@
     return rows;
   }
 
+  // Short (8-char) names for the transmit radio, e.g. "SO50 ARM", "ISS UP",
+  // "AO91 -10" (the Alinco DJ-W70 shows 8 characters).
+  function txName(sat, suffix) {
+    const base = sat.name.replace(/[-\s]/g, '');
+    const withSpace = `${base} ${suffix}`;
+    return (withSpace.length <= 8 ? withSpace : `${base}${suffix}`).slice(0, 8);
+  }
+
+  function txRows(sats) {
+    const rows = [];
+    for (const s of sats) {
+      const up = Math.round(s.up * 1000);
+      for (const r of txChannelsFor(s)) {
+        let suffix;
+        if (r.tone === 74.4) suffix = 'ARM';
+        else if (s.up < 300) suffix = 'UP';
+        else { const off = r.khz - up; suffix = off === 0 ? 'mid' : `${off > 0 ? '+' : ''}${off}`; }
+        rows.push({ ...r, sat: s, name: txName(s, suffix) });
+      }
+    }
+    return rows;
+  }
+
+  const csvCell = v => { const t = String(v == null ? '' : v); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const csv = rows => rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  const toneStr = t => `${t.toFixed(1)} Hz`;
+
+  // RT Systems DJ-W70 programmer layout, copied from a real export.
+  const ALINCO_HEADER = ['Channel Number', 'Receive Frequency', 'Transmit Frequency', 'Offset Frequency', 'Offset Direction',
+    'Operating Mode', 'Name', 'Tone Mode', 'CTCSS', 'Rx CTCSS', 'DCS', 'Rx DCS', 'DCS Polarity', 'Tx Power', 'Step',
+    'DTMF PTT ID', 'Compander', 'Scan Add1', 'Scan Add2', 'AINC', 'Busy Channel Lockout', 'Revert Freq', 'Comment'];
+  function alincoCsv(rows, start) {
+    const out = [ALINCO_HEADER];
+    rows.forEach((r, i) => {
+      const f = (r.khz / 1000).toFixed(5);
+      const tone = r.tone ? toneStr(r.tone) : '100.0 Hz';
+      out.push([start + i, f, f, ' ', 'Simplex', 'FM', r.name, r.tone ? 'Tone' : 'None', tone, tone,
+        '023', '023', 'Both N', 'High', '5 kHz', 'Off', 'Off', 'Off', 'Off', 'Off', 'Off', 'Off', '']);
+    });
+    return csv(out);
+  }
+
+  // CHIRP generic CSV (File > Import in CHIRP, any radio it supports).
+  const CHIRP_HEADER = ['Location', 'Name', 'Frequency', 'Duplex', 'Offset', 'Tone', 'rToneFreq', 'cToneFreq', 'DtcsCode',
+    'DtcsPolarity', 'RxDtcsCode', 'CrossMode', 'Mode', 'TStep', 'Skip', 'Power', 'Comment', 'URCALL', 'RPT1CALL', 'RPT2CALL', 'DVCODE'];
+  function chirpCsv(rows, start) {
+    const out = [CHIRP_HEADER];
+    rows.forEach((r, i) => {
+      const t = r.tone ? r.tone.toFixed(1) : '88.5';
+      out.push([start + i, r.name, (r.khz / 1000).toFixed(6), '', '0.000000', r.tone ? 'Tone' : '', t, t,
+        '023', 'NN', '023', 'Tone->Tone', 'FM', '5.00', '', '', r.comment || '', '', '', '', '']);
+    });
+    return csv(out);
+  }
+
   // ------------------------------------------------------------------
   // UI
   // ------------------------------------------------------------------
@@ -246,7 +301,7 @@
   function loadPrefs() {
     let p = null;
     try { p = JSON.parse(localStorage.getItem(LS_PREFS)); } catch (e) { /* ignore */ }
-    return Object.assign({ start: 801, size: 100, bank: 24, birds: null }, p || {});
+    return Object.assign({ start: 801, size: 100, bank: 24, birds: null, txStart: 101 }, p || {});
   }
   function savePrefs() { try { localStorage.setItem(LS_PREFS, JSON.stringify(ui.prefs)); } catch (e) { /* ignore */ } }
 
@@ -278,7 +333,7 @@
         <strong>${esc(s.name)}</strong>${amsatTag(s)} <span class="muted small">${n} ch, listen ${s.down.toFixed(3)}</span></label>`;
     }).join('');
     box.querySelectorAll('input').forEach(i => i.addEventListener('change', () => {
-      ui.prefs.birds = selectedSats().map(s => s.norad); savePrefs(); renderPlan();
+      ui.prefs.birds = selectedSats().map(s => s.norad); savePrefs(); renderPlan(); renderAlinco();
     }));
   }
 
@@ -338,11 +393,25 @@
     const sats = selectedSats();
     const box = $('#ft5d-alinco');
     if (!sats.length) { box.innerHTML = ''; return; }
-    const rows = [];
-    for (const s of sats) for (const r of txChannelsFor(s)) {
-      rows.push(`<tr><td>${esc(s.name)}</td><td>${mhzStr(r.khz)}</td><td>${r.tone ? r.tone.toFixed(1) + ' Hz' : 'none'}</td><td>${esc(r.note)}</td></tr>`);
+    const start = ui.prefs.txStart;
+    const rows = txRows(sats).map((r, i) =>
+      `<tr><td>${start + i}</td><td>${esc(r.name)}</td><td>${mhzStr(r.khz)}</td><td>${r.tone ? r.tone.toFixed(1) + ' Hz' : 'none'}</td><td>${esc(r.note)}</td></tr>`);
+    box.innerHTML = `<div class="tablewrap"><table class="txtable"><thead><tr><th>Ch</th><th>Name</th><th>Transmit MHz</th><th>Tone (TONE, not TSQL)</th><th>Use at</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  }
+
+  function exportCsv(kind) {
+    const sats = selectedSats();
+    if (!sats.length) { $('#csv-msg').textContent = 'Tick at least one bird first.'; return; }
+    const start = ui.prefs.txStart;
+    let text, name;
+    if (kind === 'alinco') { text = alincoCsv(txRows(sats), start); name = `alinco-djw70-sat-uplinks-${stamp()}.csv`; }
+    else if (kind === 'chirp-up') { text = chirpCsv(txRows(sats), start); name = `chirp-sat-uplinks-${stamp()}.csv`; }
+    else {
+      const rows = sats.flatMap(s => rxChannelsFor(s).map(c => ({ khz: c.khz, name: c.name, tone: null, comment: `${s.name} downlink, ${c.label}` })));
+      text = chirpCsv(rows, start); name = `chirp-sat-downlinks-${stamp()}.csv`;
     }
-    box.innerHTML = `<div class="tablewrap"><table class="txtable"><thead><tr><th>Bird</th><th>Transmit MHz</th><th>Tone (TONE, not TSQL)</th><th>Use at</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+    download(new TextEncoder().encode(text), name);
+    $('#csv-msg').textContent = `Saved ${name}.`;
   }
 
   function stamp() { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`; }
@@ -421,11 +490,18 @@
       });
       ui.prefs.birds = selectedSats().map(s => s.norad); savePrefs(); renderPlan();
     });
-    renderBirds(); renderPlan();
+    $('#ft5d-txstart').value = ui.prefs.txStart;
+    $('#ft5d-txstart').addEventListener('change', () => {
+      ui.prefs.txStart = Math.min(999, Math.max(1, Number($('#ft5d-txstart').value) || 101)); savePrefs(); renderAlinco();
+    });
+    $('#csv-alinco').addEventListener('click', () => exportCsv('alinco'));
+    $('#csv-chirp-up').addEventListener('click', () => exportCsv('chirp-up'));
+    $('#csv-chirp-down').addEventListener('click', () => exportCsv('chirp-down'));
+    renderBirds(); renderPlan(); renderAlinco();
     // AMSAT tags arrive after the first sync; refresh the bird list once they do.
     setTimeout(renderBirds, 4000);
   }
 
-  window.KN0BLE_FT5D = { parse, build, encodeChannel, decodeChannel, checksum, rxChannelsFor, txChannelsFor, FILE_SIZE };
+  window.KN0BLE_FT5D = { alincoCsv, chirpCsv, txRows, parse, build, encodeChannel, decodeChannel, checksum, rxChannelsFor, txChannelsFor, FILE_SIZE };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
